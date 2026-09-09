@@ -1,0 +1,4 @@
+logging:
+  level:
+    cl.duoc.vidasalud.bff: DEBUG
+    org.springframework.security: DEBUG
