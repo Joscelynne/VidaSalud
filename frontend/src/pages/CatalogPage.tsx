@@ -1,51 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { catalogService } from '../services/catalog.service';
 import type { MedicalSpecialty } from '../types/catalog.types';
-import { BookOpen, Stethoscope, Users, DollarSign } from 'lucide-react';
+import { BookOpen, Stethoscope, Users, DollarSign, ShieldAlert } from 'lucide-react';
 
 export const CatalogPage: React.FC = () => {
   const [specialties, setSpecialties] = useState<MedicalSpecialty[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
+    setErrorStatus(null);
     catalogService
       .getSpecialties()
       .then((data) => setSpecialties(data))
-      .catch(() => {
-        setSpecialties([
-          {
-            id: 'SPEC-01',
-            name: 'Medicina General',
-            description: 'Atención primaria integral para adultos y jóvenes.',
-            availableDoctorsCount: 14,
-            consultationFee: 25000,
-            active: true,
-          },
-          {
-            id: 'SPEC-02',
-            name: 'Pediatría',
-            description: 'Cuidado especializado para recién nacidos, niños y adolescentes.',
-            availableDoctorsCount: 8,
-            consultationFee: 32000,
-            active: true,
-          },
-          {
-            id: 'SPEC-03',
-            name: 'Cardiología',
-            description: 'Diagnóstico y tratamiento de patologías del sistema cardiovascular.',
-            availableDoctorsCount: 5,
-            consultationFee: 45000,
-            active: true,
-          },
-          {
-            id: 'SPEC-04',
-            name: 'Dermatología',
-            description: 'Tratamiento clínico y quirúrgico de enfermedades de la piel.',
-            availableDoctorsCount: 6,
-            consultationFee: 40000,
-            active: true,
-          },
-        ]);
+      .catch((err) => {
+        const status = err.response?.status || 500;
+        const msg = err.response?.data?.message || err.message || 'Error al cargar el catálogo de especialidades desde el BFF.';
+        setErrorStatus(status);
+        setErrorMessage(msg);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -64,10 +38,38 @@ export const CatalogPage: React.FC = () => {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {loading ? (
-          <div className="p-8 text-center text-slate-400 animate-pulse col-span-2">Cargando catálogo desde BFF...</div>
-        ) : (
+      {errorStatus === 401 && (
+        <div className="bg-slate-900 border border-rose-500/40 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <div className="w-10 h-10 bg-rose-500/10 text-rose-400 rounded-full flex items-center justify-center mx-auto border border-rose-500/20">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white">401 — Error de Autenticación</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
+      {errorStatus === 403 && (
+        <div className="bg-slate-900 border border-amber-500/40 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <div className="w-10 h-10 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto border border-amber-500/20">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white">403 — Acceso Denegado</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
+      {errorStatus !== null && errorStatus !== 401 && errorStatus !== 403 && (
+        <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <h3 className="text-base font-bold text-white">Error de Conexión BFF</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
+      {!errorStatus && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {loading ? (
+            <div className="p-8 text-center text-slate-400 animate-pulse col-span-2">Cargando catálogo desde BFF...</div>
+          ) : (
           specialties.map((spec) => (
             <div key={spec.id} className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 space-y-4 hover:border-blue-500/30 transition-colors">
               <div className="flex items-center justify-between">
@@ -95,6 +97,7 @@ export const CatalogPage: React.FC = () => {
           ))
         )}
       </div>
+      )}
     </div>
   );
 };

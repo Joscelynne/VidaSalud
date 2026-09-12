@@ -1,6 +1,5 @@
 import React, { createContext, useEffect, useState, useCallback } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
-import { InteractionRequiredAuthError } from '@azure/msal-browser';
 import type { AuthContextType, UserProfile, UserRole } from '../types/auth.types';
 import { loginRequest, tokenRequest } from '../auth/authConfig';
 import { extractUserProfileFromJwt } from '../utils/jwt';
@@ -50,14 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return token;
     } catch (error) {
-      console.warn('Silent token acquisition failed. Prompting interaction:', error);
-      if (error instanceof InteractionRequiredAuthError) {
-        try {
-          await instance.acquireTokenRedirect(tokenRequest);
-        } catch (redirectError) {
-          console.error('Redirect token acquisition failed:', redirectError);
-        }
-      }
+      console.warn('[AuthContext] Falló acquireTokenSilent:', error);
       return null;
     }
   }, [instance, accounts]);

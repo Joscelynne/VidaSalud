@@ -1,47 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { appointmentService } from '../services/appointment.service';
 import type { Appointment } from '../types/appointment.types';
-import { UserCheck, Clock, CheckCircle2 } from 'lucide-react';
+import { UserCheck, Clock, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 export const OperatorDashboard: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const fetchAppointments = () => {
     setLoading(true);
+    setErrorStatus(null);
     appointmentService
       .getAppointments()
       .then((data) => setAppointments(data))
-      .catch(() => {
-        setAppointments([
-          {
-            id: 'APT-101',
-            patientName: 'Carlos Mendoza',
-            doctorName: 'Dra. María Paz',
-            specialty: 'Medicina General',
-            dateTime: '2026-09-09T17:00:00',
-            status: 'PENDING',
-            roomNumber: 'Box 204',
-          },
-          {
-            id: 'APT-102',
-            patientName: 'Lorena Silva',
-            doctorName: 'Dr. Roberto Gómez',
-            specialty: 'Cardiología',
-            dateTime: '2026-09-09T17:30:00',
-            status: 'PENDING',
-            roomNumber: 'Box 108',
-          },
-          {
-            id: 'APT-103',
-            patientName: 'Andrea Torres',
-            doctorName: 'Dra. Camila Morales',
-            specialty: 'Pediatría',
-            dateTime: '2026-09-09T16:15:00',
-            status: 'CONFIRMED',
-            roomNumber: 'Box 301',
-          },
-        ]);
+      .catch((err) => {
+        const status = err.response?.status || 500;
+        const msg = err.response?.data?.message || err.message || 'Error al obtener pacientes en espera desde BFF.';
+        setErrorStatus(status);
+        setErrorMessage(msg);
       })
       .finally(() => setLoading(false));
   };
@@ -75,15 +54,43 @@ export const OperatorDashboard: React.FC = () => {
         </span>
       </div>
 
-      <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-700/60 bg-slate-900/40 flex items-center justify-between">
-          <span className="font-semibold text-slate-200 text-sm">Pacientes en Espera (Hoy)</span>
-          <span className="text-xs text-slate-400 font-mono">Actualizado en tiempo real</span>
+      {errorStatus === 401 && (
+        <div className="bg-slate-900 border border-rose-500/40 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <div className="w-10 h-10 bg-rose-500/10 text-rose-400 rounded-full flex items-center justify-center mx-auto border border-rose-500/20">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white">401 — Error de Autenticación</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
         </div>
+      )}
 
-        {loading ? (
-          <div className="p-8 text-center text-slate-400 animate-pulse">Cargando sala de espera...</div>
-        ) : (
+      {errorStatus === 403 && (
+        <div className="bg-slate-900 border border-amber-500/40 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <div className="w-10 h-10 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto border border-amber-500/20">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white">403 — Acceso Denegado</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
+      {errorStatus !== null && errorStatus !== 401 && errorStatus !== 403 && (
+        <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <h3 className="text-base font-bold text-white">Error de Conexión BFF</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
+      {!errorStatus && (
+        <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-slate-700/60 bg-slate-900/40 flex items-center justify-between">
+            <span className="font-semibold text-slate-200 text-sm">Pacientes en Espera (Hoy)</span>
+            <span className="text-xs text-slate-400 font-mono">Actualizado en tiempo real</span>
+          </div>
+
+          {loading ? (
+            <div className="p-8 text-center text-slate-400 animate-pulse">Cargando sala de espera...</div>
+          ) : (
           <div className="divide-y divide-slate-700/50">
             {appointments.map((apt) => (
               <div key={apt.id} className="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-colors">
@@ -122,6 +129,7 @@ export const OperatorDashboard: React.FC = () => {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

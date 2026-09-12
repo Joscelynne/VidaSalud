@@ -16,19 +16,23 @@ api.interceptors.request.use(
     try {
       const accounts = msalInstance.getAllAccounts();
       if (accounts.length > 0) {
-        const activeAccount = msalInstance.getActiveAccount() || accounts[0];
-        
+        let activeAccount = msalInstance.getActiveAccount();
+        if (!activeAccount) {
+          activeAccount = accounts[0];
+          msalInstance.setActiveAccount(activeAccount);
+        }
+
         const response = await msalInstance.acquireTokenSilent({
           ...tokenRequest,
           account: activeAccount,
         });
 
-        if (response.accessToken) {
+        if (response?.accessToken) {
           config.headers.Authorization = `Bearer ${response.accessToken}`;
         }
       }
     } catch (error) {
-      console.warn('Falló acquireTokenSilent en Interceptor de Axios:', error);
+      console.warn('[Axios Interceptor] Falló acquireTokenSilent:', error);
     }
     return config;
   },
@@ -37,13 +41,11 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
+  (error) => {
     if (error.response?.status === 401) {
-      console.error('API 401 Unauthorized: Token inválido o expirado. Redireccionando a /login');
-      window.location.href = '/login';
+      console.warn('[BFF API] 401 Unauthorized - Token no válido o ausente.');
     } else if (error.response?.status === 403) {
-      console.error('API 403 Forbidden: Sin permisos suficientes. Redireccionando a /unauthorized');
-      window.location.href = '/unauthorized';
+      console.warn('[BFF API] 403 Forbidden - Acceso denegado.');
     }
     return Promise.reject(error);
   }

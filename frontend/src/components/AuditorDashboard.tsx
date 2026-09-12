@@ -1,52 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { auditService } from '../services/audit.service';
 import type { AuditLogEntry } from '../types/audit.types';
-import { History, Terminal } from 'lucide-react';
+import { History, Terminal, ShieldAlert } from 'lucide-react';
 
 export const AuditorDashboard: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
+    setErrorStatus(null);
     auditService
       .getAuditLogs()
       .then((data) => setLogs(data))
-      .catch(() => {
-        setLogs([
-          {
-            id: 'LOG-001',
-            timestamp: new Date().toISOString(),
-            user: 'admin@vidasalud.cl',
-            action: 'GET /api/me',
-            resource: 'UserController',
-            status: 'SUCCESS',
-            ipAddress: '192.168.1.50',
-            traceId: 'tr-8a9f-4312',
-            details: 'JWT Token validado contra Azure AD JWKS endpoint. Signature valid.',
-          },
-          {
-            id: 'LOG-002',
-            timestamp: new Date(Date.now() - 3600000).toISOString(),
-            user: 'operator@vidasalud.cl',
-            action: 'POST /api/appointments/APT-101/confirm',
-            resource: 'AppointmentController',
-            status: 'SUCCESS',
-            ipAddress: '192.168.1.52',
-            traceId: 'tr-11bc-9902',
-            details: 'Estado actualizado a CONFIRMED.',
-          },
-          {
-            id: 'LOG-003',
-            timestamp: new Date(Date.now() - 7200000).toISOString(),
-            user: 'client@vidasalud.cl',
-            action: 'GET /api/report/kpis',
-            resource: 'ReportController',
-            status: 'UNAUTHORIZED',
-            ipAddress: '190.160.10.4',
-            traceId: 'tr-99dd-0012',
-            details: 'CustomAccessDeniedHandler disparado (HTTP 403). El token carece de rol Admin.',
-          },
-        ]);
+      .catch((err) => {
+        const status = err.response?.status || 500;
+        const msg = err.response?.data?.message || err.message || 'Error al obtener registros de auditoría desde BFF.';
+        setErrorStatus(status);
+        setErrorMessage(msg);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -65,9 +38,36 @@ export const AuditorDashboard: React.FC = () => {
         </span>
       </div>
 
+      {errorStatus === 401 && (
+        <div className="bg-slate-900 border border-rose-500/40 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <div className="w-10 h-10 bg-rose-500/10 text-rose-400 rounded-full flex items-center justify-center mx-auto border border-rose-500/20">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white">401 — Error de Autenticación</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
+      {errorStatus === 403 && (
+        <div className="bg-slate-900 border border-amber-500/40 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <div className="w-10 h-10 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto border border-amber-500/20">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white">403 — Acceso Denegado</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
+      {errorStatus !== null && errorStatus !== 401 && errorStatus !== 403 && (
+        <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <h3 className="text-base font-bold text-white">Error de Conexión BFF</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
       {loading ? (
         <div className="p-8 text-center text-slate-400 animate-pulse">Cargando timeline de eventos...</div>
-      ) : (
+      ) : !errorStatus && (
         <div className="relative border-l-2 border-slate-700/60 ml-4 space-y-6 pl-6 py-2">
           {logs.map((log) => (
             <div key={log.id} className="relative group">

@@ -6,20 +6,20 @@ import { BarChart3, Users, CheckCircle2, Clock, DollarSign, ShieldAlert } from '
 export const AdminDashboard: React.FC = () => {
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
+    setErrorStatus(null);
     reportService
       .getKPIs()
       .then((data) => setKpis(data))
-      .catch(() => {
-        setKpis({
-          totalAppointments: 1420,
-          completedAppointments: 1180,
-          pendingAppointments: 190,
-          cancelledAppointments: 50,
-          monthlyRevenue: 48500000,
-          patientSatisfactionRate: 96.4,
-        });
+      .catch((err) => {
+        const status = err.response?.status || 500;
+        const msg = err.response?.data?.message || err.message || 'Error al obtener KPIs de administración desde BFF.';
+        setErrorStatus(status);
+        setErrorMessage(msg);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -38,9 +38,36 @@ export const AdminDashboard: React.FC = () => {
         </span>
       </div>
 
+      {errorStatus === 401 && (
+        <div className="bg-slate-900 border border-rose-500/40 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <div className="w-10 h-10 bg-rose-500/10 text-rose-400 rounded-full flex items-center justify-center mx-auto border border-rose-500/20">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white">401 — Error de Autenticación</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
+      {errorStatus === 403 && (
+        <div className="bg-slate-900 border border-amber-500/40 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <div className="w-10 h-10 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto border border-amber-500/20">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white">403 — Acceso Denegado</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
+      {errorStatus !== null && errorStatus !== 401 && errorStatus !== 403 && (
+        <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 text-center space-y-3 shadow-xl">
+          <h3 className="text-base font-bold text-white">Error de Conexión BFF</h3>
+          <p className="text-xs text-slate-300 max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      )}
+
       {loading ? (
         <div className="p-8 text-center text-slate-400 animate-pulse">Cargando métricas de administración...</div>
-      ) : (
+      ) : !errorStatus && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-5">
             <div className="flex items-center justify-between text-slate-400 mb-2">
