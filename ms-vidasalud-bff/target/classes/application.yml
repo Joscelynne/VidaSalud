@@ -1,26 +1,29 @@
 server:
   port: ${SERVER_PORT:8080}
-  error:
-    include-message: always
-    include-binding-errors: always
+
+error:
+  include-message: always
+  include-binding-errors: always
 
 spring:
   application:
     name: ms-vidasalud-bff
+
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID:common}/v2.0
+          issuer-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0
           audiences:
-            - api://${AZURE_API_CLIENT_ID:00000000-0000-0000-0000-000000000000}
-            - ${AZURE_API_CLIENT_ID:00000000-0000-0000-0000-000000000000}
+            - api://${AZURE_API_CLIENT_ID}
+            - ${AZURE_API_CLIENT_ID}
 
 azure:
-  tenant-id: ${AZURE_TENANT_ID:common}
-  api-client-id: ${AZURE_API_CLIENT_ID:00000000-0000-0000-0000-000000000000}
+  tenant-id: ${AZURE_TENANT_ID}
+  api-client-id: ${AZURE_API_CLIENT_ID}
 
 management:
   endpoints:

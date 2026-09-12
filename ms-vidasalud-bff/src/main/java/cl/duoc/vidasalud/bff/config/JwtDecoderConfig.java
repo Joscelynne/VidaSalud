@@ -5,9 +5,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.core.OAuth2Error;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -16,29 +18,37 @@ public class JwtDecoderConfig {
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
     private String issuerUri;
 
-    @Value("${azure.api-client-id:00000000-0000-0000-0000-000000000000}")
+    @Value("${azure.api-client-id}")
     private String apiClientId;
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        // Inicializar JwtDecoder usando OIDC Discovery de Azure AD
+
         NimbusJwtDecoder jwtDecoder = JwtDecoders.fromIssuerLocation(issuerUri);
 
         OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
-        OAuth2TokenValidator<Jwt> withAudience = new OAuth2TokenValidator<Jwt>() {
-            @Override
-            public org.springframework.security.oauth2.core.OAuth2TokenValidatorResult validate(Jwt jwt) {
-                List<String> audience = jwt.getAudience();
-                String expectedAudienceFull = "api://" + apiClientId;
-                if (audience != null && (audience.contains(apiClientId) || audience.contains(expectedAudienceFull))) {
-                    return org.springframework.security.oauth2.core.OAuth2TokenValidatorResult.success();
-                }
-                // Si la audiencia no requiere estricto match en dev, permitir passthrough
-                return org.springframework.security.oauth2.core.OAuth2TokenValidatorResult.success();
+
+        OAuth2TokenValidator<Jwt> withAudience = jwt -> {
+
+            List<String> audience = jwt.getAudience();
+
+            String expectedAudience = "api://" + apiClientId;
+
+            if (audience != null && audience.contains(expectedAudience)) {
+                return OAuth2TokenValidatorResult.success();
             }
+
+            return OAuth2TokenValidatorResult.failure(
+                    new OAuth2Error(
+                            "invalid_token",
+                            "La audiencia del JWT no corresponde a VidaSalud",
+                            null));
         };
 
-        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(withIssuer, withAudience);
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                withIssuer,
+                withAudience);
+
         jwtDecoder.setJwtValidator(validator);
 
         return jwtDecoder;
