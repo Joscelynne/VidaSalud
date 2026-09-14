@@ -29,46 +29,46 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // 1. Desactivar CSRF y configurar gestión de sesiones STATELESS
-            .csrf(AbstractHttpConfigurer::disable)
-            .cors(cors -> {})
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 1. Desactivar CSRF y configurar gestión de sesiones STATELESS
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> {
+                })
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-            // 2. Manejo de excepciones de seguridad 401 y 403 con JSON personalizado
-            .exceptionHandling(exceptions -> exceptions
-                .authenticationEntryPoint(customAuthenticationEntryPoint)
-                .accessDeniedHandler(customAccessDeniedHandler)
-            )
+                // 2. Manejo de excepciones de seguridad 401 y 403 con JSON personalizado
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(customAuthenticationEntryPoint)
+                        .accessDeniedHandler(customAccessDeniedHandler))
 
-            // 3. Reglas de autorización por endpoint solicitadas en la pauta EP1
-            .authorizeHttpRequests(auth -> auth
-                // Endpoints públicos / Actuator
-                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // 3. Reglas de autorización por endpoint solicitadas en la pauta EP1
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // Endpoints de Atenciones Médicas: Admin, Operator, Client
-                .requestMatchers("/api/appointments/**").hasAnyRole("Admin", "Operator", "Client")
+                        // Atenciones Médicas: Admin, Recepcionista, Paciente
+                        .requestMatchers("/api/appointments/**")
+                        .hasAnyRole("Admin", "Recepcionista", "Paciente")
 
-                // Endpoints de Catálogo de Especialidades: Admin, Operator
-                .requestMatchers("/api/catalog/**").hasAnyRole("Admin", "Operator")
+                        // Catálogo: Admin, Recepcionista
+                        .requestMatchers("/api/catalog/**")
+                        .hasAnyRole("Admin", "Recepcionista")
 
-                // Endpoints de Reportería Gerencial: Admin
-                .requestMatchers("/api/report/**").hasRole("Admin")
+                        // Reportería: Admin
+                        .requestMatchers("/api/report/**")
+                        .hasRole("Admin")
 
-                // Endpoints de Auditoría y Trazabilidad: Admin, Auditor
-                .requestMatchers("/api/audit/**").hasAnyRole("Admin", "Auditor")
+                        // Auditoría: Admin, Auditor
+                        .requestMatchers("/api/audit/**")
+                        .hasAnyRole("Admin", "Auditor")
 
-                // Endpoint /api/me y cualquier otra petición autenticada
-                .requestMatchers("/api/me").authenticated()
-                .anyRequest().authenticated()
-            )
+                        .requestMatchers("/api/me").authenticated()
+                        .anyRequest().authenticated())
 
-            // 4. Configurar OAuth2 Resource Server con JWT
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
-                .authenticationEntryPoint(customAuthenticationEntryPoint)
-                .accessDeniedHandler(customAccessDeniedHandler)
-            );
+                // 4. Configurar OAuth2 Resource Server con JWT
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
+                        .authenticationEntryPoint(customAuthenticationEntryPoint)
+                        .accessDeniedHandler(customAccessDeniedHandler));
 
         return http.build();
     }
