@@ -22,15 +22,15 @@ export const Sidebar: React.FC = () => {
     },
     {
       to: '/appointments',
-      label: 'Atenciones Médicas',
+      label: hasRole(['Paciente']) && !hasRole(['Admin', 'Recepcionista']) ? 'Mis Atenciones' : 'Atenciones Médicas',
       icon: CalendarCheck,
-      show: hasRole(['Admin', 'Operator', 'Client']),
+      show: hasRole(['Admin', 'Recepcionista', 'Paciente']),
     },
     {
       to: '/catalog',
       label: 'Catálogo de Especialidades',
       icon: BookOpen,
-      show: hasRole(['Admin', 'Operator']),
+      show: hasRole(['Admin', 'Recepcionista']),
     },
     {
       to: '/reports',

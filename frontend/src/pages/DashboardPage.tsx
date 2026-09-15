@@ -1,8 +1,8 @@
 import React from 'react';
 import { useRoles } from '../hooks/useRoles';
 import { AdminDashboard } from '../components/AdminDashboard';
-import { OperatorDashboard } from '../components/OperatorDashboard';
-import { ClientDashboard } from '../components/ClientDashboard';
+import { RecepcionistaDashboard } from '../components/RecepcionistaDashboard';
+import { PacienteDashboard } from '../components/PacienteDashboard';
 import { AuditorDashboard } from '../components/AuditorDashboard';
 
 export const DashboardPage: React.FC = () => {
@@ -13,9 +13,9 @@ export const DashboardPage: React.FC = () => {
     return <AdminDashboard />;
   }
 
-  // Si tiene rol Operator, mostrar OperatorDashboard
-  if (roles.includes('Operator')) {
-    return <OperatorDashboard />;
+  // Si tiene rol Recepcionista, mostrar RecepcionistaDashboard
+  if (roles.includes('Recepcionista')) {
+    return <RecepcionistaDashboard />;
   }
 
   // Si tiene rol Auditor, mostrar AuditorDashboard
@@ -23,6 +23,6 @@ export const DashboardPage: React.FC = () => {
     return <AuditorDashboard />;
   }
 
-  // Por defecto (Client)
-  return <ClientDashboard />;
+  // Si tiene rol Paciente o por defecto
+  return <PacienteDashboard />;
 };

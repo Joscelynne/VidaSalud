@@ -4,7 +4,7 @@ import type { Appointment } from '../types/appointment.types';
 import { Calendar, Clock, MapPin, Stethoscope, AlertTriangle, ShieldAlert, RefreshCw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
-export const ClientDashboard: React.FC = () => {
+export const PacienteDashboard: React.FC = () => {
   const { user, login } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -43,7 +43,7 @@ export const ClientDashboard: React.FC = () => {
           <p className="text-slate-400 text-sm">Consulta el estado de tus citas médicas y tu historial de salud.</p>
         </div>
         <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold rounded-full">
-          Rol: Client
+          Rol: Paciente
         </span>
       </div>
 

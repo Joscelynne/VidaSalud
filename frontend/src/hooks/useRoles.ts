@@ -14,8 +14,8 @@ export const useRoles = () => {
   };
 
   const isAdmin = roles.includes('Admin');
-  const isOperator = roles.includes('Operator');
-  const isClient = roles.includes('Client');
+  const isRecepcionista = roles.includes('Recepcionista');
+  const isPaciente = roles.includes('Paciente');
   const isAuditor = roles.includes('Auditor');
 
   return {
@@ -23,8 +23,8 @@ export const useRoles = () => {
     hasRole,
     hasAnyRole,
     isAdmin,
-    isOperator,
-    isClient,
+    isRecepcionista,
+    isPaciente,
     isAuditor,
     user,
   };

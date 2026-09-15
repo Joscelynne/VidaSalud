@@ -33,7 +33,7 @@ export function extractUserProfileFromJwt(token: string): UserProfile | null {
   if (Array.isArray(claims.roles) && claims.roles.length > 0) {
     roles = claims.roles as UserRole[];
   } else {
-    roles = ['Client'];
+    roles = ['Paciente'];
   }
 
   const scopes = claims.scp ? claims.scp.split(' ') : [];

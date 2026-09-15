@@ -34,7 +34,7 @@ export const CatalogPage: React.FC = () => {
           <p className="text-slate-400 text-sm">Especialidades disponibles en la red de clínicas VidaSalud.</p>
         </div>
         <span className="px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-semibold rounded-full">
-          Ruta Protegida: Admin & Operator
+          Ruta Protegida: Admin & Recepcionista
         </span>
       </div>
 

@@ -40,7 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: activeAccount.name || 'Usuario Autenticado',
           preferredUsername: activeAccount.username,
           email: activeAccount.username,
-          roles: (activeAccount.idTokenClaims?.roles as UserRole[]) || ['Client'],
+          roles: (activeAccount.idTokenClaims?.roles as UserRole[]) || ['Paciente'],
           scopes: response.scopes || [],
         };
         setUser(fallbackProfile);

@@ -3,7 +3,7 @@ import { appointmentService } from '../services/appointment.service';
 import type { Appointment } from '../types/appointment.types';
 import { UserCheck, Clock, CheckCircle2, ShieldAlert } from 'lucide-react';
 
-export const OperatorDashboard: React.FC = () => {
+export const RecepcionistaDashboard: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -50,7 +50,7 @@ export const OperatorDashboard: React.FC = () => {
           <p className="text-slate-400 text-sm">Gestión de flujo de pacientes y recepción presencial.</p>
         </div>
         <span className="px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-semibold rounded-full">
-          Rol: Operator
+          Rol: Recepcionista
         </span>
       </div>
 

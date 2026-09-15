@@ -28,21 +28,21 @@ export const AppRouter: React.FC = () => {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
 
-        {/* Atenciones Médicas: Admin, Operator, Client */}
+        {/* Atenciones Médicas: Admin, Recepcionista, Paciente */}
         <Route
           path="/appointments"
           element={
-            <RoleGuard allowedRoles={['Admin', 'Operator', 'Client']}>
+            <RoleGuard allowedRoles={['Admin', 'Recepcionista', 'Paciente']}>
               <AppointmentsPage />
             </RoleGuard>
           }
         />
 
-        {/* Catálogo de Especialidades: Admin, Operator */}
+        {/* Catálogo de Especialidades: Admin, Recepcionista */}
         <Route
           path="/catalog"
           element={
-            <RoleGuard allowedRoles={['Admin', 'Operator']}>
+            <RoleGuard allowedRoles={['Admin', 'Recepcionista']}>
               <CatalogPage />
             </RoleGuard>
           }

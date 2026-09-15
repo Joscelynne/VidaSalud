@@ -2,23 +2,6 @@ import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { msalInstance, tokenRequest } from '../auth/msalConfig';
 import { ENV } from '../config/env.config';
-import { decodeJwt } from '../utils/jwt';
-
-// DEBUG: Función temporal para inspeccionar claims del token de forma segura
-const debugTokenClaims = (token: string) => {
-  const claims = decodeJwt(token);
-  if (claims) {
-    console.log('[DEBUG JWT Claims]', {
-      iss: claims.iss,
-      aud: claims.aud,
-      ver: (claims as Record<string, unknown>).ver,
-      tid: (claims as Record<string, unknown>).tid,
-      scp: claims.scp,
-      roles: claims.roles,
-      exp: claims.exp ? new Date(claims.exp * 1000).toISOString() : undefined,
-    });
-  }
-};
 
 export const api = axios.create({
   baseURL: ENV.API_GATEWAY_URL,
@@ -45,8 +28,6 @@ api.interceptors.request.use(
         });
 
         if (response?.accessToken) {
-          // DEBUG: Inspeccionar claims del token antes de enviarlo
-          debugTokenClaims(response.accessToken);
           config.headers.Authorization = `Bearer ${response.accessToken}`;
         }
       }

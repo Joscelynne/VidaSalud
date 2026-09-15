@@ -40,11 +40,6 @@ public class JwtAuthenticationConverterConfig {
                     }
                 }
 
-                // Si no hay roles explícitos en el JWT, otorgar ROLE_Client por defecto
-                if (roles == null || roles.isEmpty()) {
-                    authorities.add(new SimpleGrantedAuthority("ROLE_Client"));
-                }
-
                 // Usar preferiblemente preferred_username, name u sub como principal name
                 String principalClaimName = jwt.getClaimAsString("preferred_username");
                 if (principalClaimName == null) {
