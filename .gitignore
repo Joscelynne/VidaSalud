@@ -1,0 +1,14 @@
+# Java y Maven
+**/target/
+*.class
+
+# Node.js
+**/node_modules/
+
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Archivos del sistema operativo
+.DS_Store
