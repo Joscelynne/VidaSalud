@@ -13,10 +13,11 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
   rabbitmq:
+    addresses: ${SPRING_RABBITMQ_ADDRESSES:}
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:vidasalud}
-    password: ${SPRING_RABBITMQ_PASSWORD}
+    password: ${SPRING_RABBITMQ_PASSWORD:vidasalud_local_2026}
     virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
     listener:
       simple:

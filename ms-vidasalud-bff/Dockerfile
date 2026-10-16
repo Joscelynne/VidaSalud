@@ -1,5 +1,4 @@
-# Etapa 1: Build de la aplicación Java 21 con Maven
-FROM maven:3.9.6-eclipse-temurin-21-alpine AS build
+FROM --platform=$BUILDPLATFORM maven:3.9.6-eclipse-temurin-21-alpine AS build
 
 WORKDIR /app
 
