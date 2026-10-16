@@ -1,0 +1,81 @@
+# ==============================================================================
+# INFRAESTRUCTURA DE CLUSTER RABBITMQ PARA EP4 (2 NODOS) — VIDASALUD
+# ==============================================================================
+# Este archivo está preparado para pruebas y despliegue del cluster RabbitMQ
+# de alta concurrencia y tolerancia a fallos para la Evaluación Parcial 4.
+# NO reemplaza docker-compose.yml local.
+# ==============================================================================
+
+services:
+
+  # ----------------------------------------------------------------------------
+  # NODO 1: NODO PRINCIPAL / SEMILLA (rabbitmq1)
+  # ----------------------------------------------------------------------------
+  rabbitmq1:
+    image: rabbitmq:3.13-management-alpine
+    container_name: vidasalud-rabbitmq-node1
+    hostname: rabbitmq1
+    ports:
+      - "5672:5672"
+      - "127.0.0.1:15672:15672"
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "VIDASALUD_ERLANG_COOKIE_EP4_SECRET_2026"
+      RABBITMQ_NODENAME: "rabbit@rabbitmq1"
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USERNAME:-vidasalud}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:?Debes definir RABBITMQ_PASSWORD}"
+      RABBITMQ_DEFAULT_VHOST: "/"
+    volumes:
+      - rabbitmq1_data:/var/lib/rabbitmq
+    networks:
+      - vidasalud-cluster-net
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # NODO 2: NODO SECUNDARIO (rabbitmq2) CON DESCUBRIMIENTO CLÁSICO DE PEERS
+  # ----------------------------------------------------------------------------
+  rabbitmq2:
+    image: rabbitmq:3.13-management-alpine
+    container_name: vidasalud-rabbitmq-node2
+    hostname: rabbitmq2
+    ports:
+      - "5673:5672"
+      - "127.0.0.1:15673:15672"
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "VIDASALUD_ERLANG_COOKIE_EP4_SECRET_2026"
+      RABBITMQ_NODENAME: "rabbit@rabbitmq2"
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USERNAME:-vidasalud}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:?Debes definir RABBITMQ_PASSWORD}"
+      RABBITMQ_DEFAULT_VHOST: "/"
+      # Descubrimiento de peers mediante backend clásico para unirse a rabbit@rabbitmq1
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit cluster_formation.peer_discovery_backend rabbit_peer_discovery_classic_config -rabbit cluster_formation.classic_config.nodes [rabbit@rabbitmq1]"
+    volumes:
+      - rabbitmq2_data:/var/lib/rabbitmq
+    networks:
+      - vidasalud-cluster-net
+    depends_on:
+      rabbitmq1:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+# ------------------------------------------------------------------------------
+# REDES Y VOLÚMENES PERSISTENTES PARA EL CLUSTER
+# ------------------------------------------------------------------------------
+networks:
+  vidasalud-cluster-net:
+    driver: bridge
+
+volumes:
+  rabbitmq1_data:
+  rabbitmq2_data:

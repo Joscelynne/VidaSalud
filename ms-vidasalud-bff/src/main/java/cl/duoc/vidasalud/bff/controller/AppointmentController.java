@@ -1,15 +1,23 @@
 package cl.duoc.vidasalud.bff.controller;
 
 import cl.duoc.vidasalud.bff.dto.AppointmentDto;
+import cl.duoc.vidasalud.bff.event.AppointmentConfirmedEvent;
+import cl.duoc.vidasalud.bff.producer.AppointmentEventProducer;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/appointments")
 public class AppointmentController {
+
+        @Autowired(required = false)
+        private AppointmentEventProducer appointmentEventProducer;
 
         @GetMapping
         @PreAuthorize("hasAnyRole('Admin', 'Recepcionista', 'Paciente')")
@@ -66,6 +74,22 @@ public class AppointmentController {
         @PostMapping("/{id}/confirm")
         @PreAuthorize("hasAnyRole('Admin', 'Recepcionista')")
         public ResponseEntity<AppointmentDto> confirmAppointment(@PathVariable String id) {
+                if (appointmentEventProducer != null) {
+                        try {
+                                appointmentEventProducer.publishAppointmentConfirmed(
+                                                AppointmentConfirmedEvent.builder()
+                                                                .appointmentId(id)
+                                                                .confirmedBy("BFF-Controller")
+                                                                .dateTime("2026-09-09T17:00:00")
+                                                                .status("CONFIRMED")
+                                                                .notes("Confirmación emitida desde endpoint REST /api/appointments/" + id + "/confirm")
+                                                                .build()
+                                );
+                        } catch (Exception ex) {
+                                log.warn("Aviso: no se pudo publicar AppointmentConfirmedEvent en RabbitMQ: {}", ex.getMessage());
+                        }
+                }
+
                 AppointmentDto dto = AppointmentDto.builder()
                                 .id(id)
                                 .patientName("Paciente Confirmado")

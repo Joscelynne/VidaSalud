@@ -2,3 +2,5 @@ logging:
   level:
     cl.duoc.vidasalud.bff: DEBUG
     org.springframework.security: DEBUG
+    org.springframework.amqp: DEBUG
+

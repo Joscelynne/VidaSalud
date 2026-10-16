@@ -122,3 +122,75 @@ curl -i -X GET http://localhost:8080/api/me \
 }
 ```
 - **Componente Responsable**: `UserController` & `JwtAuthenticationConverterConfig`
+
+---
+
+## 3. Pruebas de Seguridad en Endpoints Administrativos de RabbitMQ (`/api/admin/amqp/**`)
+
+Toda la jerarquía de rutas bajo `/api/admin/amqp/**` está explícitamente restringida al rol **Admin**.
+
+---
+
+### Caso 5: Petición Sin Token a API Administrativa RabbitMQ
+- **Petición**:
+```bash
+curl -i -X GET http://localhost:8080/api/admin/amqp/queues/citas.agendamiento.queue
+```
+- **Resultado Esperado**: `HTTP/1.1 401 Unauthorized`
+- **Cuerpo de la Respuesta JSON**:
+```json
+{
+  "timestamp": "2026-10-15T19:30:00.000Z",
+  "status": 401,
+  "error": "Unauthorized",
+  "message": "Token inválido, expirado o ausente",
+  "path": "/api/admin/amqp/queues/citas.agendamiento.queue"
+}
+```
+- **Componente Responsable**: `CustomAuthenticationEntryPoint` & `SecurityConfig`
+
+---
+
+### Caso 6: Petición con Rol Distinto a Admin (ej. Paciente, Recepcionista, Auditor)
+- **Contexto**: Petición enviada con JWT válido pero con claim `"roles": ["Recepcionista"]` o `"roles": ["Paciente"]`.
+- **Petición**:
+```bash
+curl -i -X POST http://localhost:8080/api/admin/amqp/queues/citas.agendamiento.queue/purge \
+  -H "Authorization: Bearer <VALID_RECEPCIONISTA_OR_PACIENTE_JWT_TOKEN>"
+```
+- **Resultado Esperado**: `HTTP/1.1 403 Forbidden`
+- **Cuerpo de la Respuesta JSON**:
+```json
+{
+  "timestamp": "2026-10-15T19:31:00.000Z",
+  "status": 403,
+  "error": "Forbidden",
+  "message": "Acceso denegado: rol o privilegio insuficiente para esta operación",
+  "path": "/api/admin/amqp/queues/citas.agendamiento.queue/purge"
+}
+```
+- **Componente Responsable**: `CustomAccessDeniedHandler`, `SecurityConfig` y `@PreAuthorize("hasRole('Admin')")`
+
+---
+
+### Caso 7: Petición con Rol Admin Autorizado
+- **Contexto**: Petición enviada con JWT emitido por Microsoft Entra ID con claim `"roles": ["Admin"]`.
+- **Petición**:
+```bash
+curl -i -X GET http://localhost:8080/api/admin/amqp/queues/citas.agendamiento.queue \
+  -H "Authorization: Bearer <VALID_ADMIN_JWT_TOKEN>"
+```
+- **Resultado Esperado**: `HTTP/1.1 200 OK`
+- **Cuerpo de la Respuesta JSON**:
+```json
+{
+  "name": "citas.agendamiento.queue",
+  "exists": true,
+  "messageCount": 0,
+  "consumerCount": 1,
+  "apiSource": "Spring AMQP RabbitAdmin / queue.declare-passive",
+  "details": "Estadísticas obtenidas vía protocolo AMQP 0-9-1. Métricas de memoria y tasas requieren Management HTTP Plugin."
+}
+```
+- **Componente Responsable**: `RabbitAdminController`, `RabbitAdminService` y `SecurityConfig`
+

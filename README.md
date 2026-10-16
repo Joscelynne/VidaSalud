@@ -37,8 +37,10 @@ Plataforma empresarial de gestión de atenciones médicas construida con arquite
 
 ### Backend BFF (`ms-vidasalud-bff`)
 - **Java 21 LTS**.
-- **Spring Boot 3.5.x** / 3.4.x.
-- **Spring Security 6** (OAuth2 Resource Server JWT).
+- **Spring Boot 3.4.3** (Java 21 + Spring Security 6).
+- **OAuth2 Resource Server JWT** (Microsoft Entra ID).
+- **RabbitMQ 3.13** (Broker AMQP con Management Plugin).
+- **Spring AMQP** (Topología de 6 colas durables, DLQ, ACK/NACK manual y API administrativa).
 - **Maven**.
 - **Lombok** & **Spring Boot Actuator**.
 - **Docker** & **Docker Compose**.
@@ -68,19 +70,25 @@ Cloud Native I/
 │   └── nginx.conf                # Servidor SPA Nginx con fallback index.html
 ├── ms-vidasalud-bff/             # Microservicio Spring Boot BFF
 │   ├── src/main/java/cl/duoc/vidasalud/bff/
-│   │   ├── config/               # SecurityConfig, JwtDecoderConfig, JwtAuthenticationConverterConfig, CorsConfig
-│   │   ├── controller/           # UserController (/api/me), AppointmentController, CatalogController, ReportController, AuditController
-│   │   ├── dto/                  # UserMeResponse, ErrorResponse, AppointmentDto, CatalogDto, ReportDto, AuditDto
+│   │   ├── config/               # SecurityConfig, RabbitMQConfig, RabbitMQConstants, JwtDecoderConfig
+│   │   ├── controller/           # RabbitAdminController, AppointmentController, CatalogController, ReportController, AuditController, UserController
+│   │   ├── event/                # AppointmentCreatedEvent, AppointmentConfirmedEvent, NotificationAuditEvent
+│   │   ├── producer/             # AppointmentEventProducer, AuditEventProducer
+│   │   ├── consumer/             # AppointmentCreationConsumer, AppointmentConfirmationConsumer, NotificationAuditConsumer
+│   │   ├── service/              # RabbitAdminService (gestión oficial Spring AMQP)
+│   │   ├── dto/                  # DTOs REST y amqp (CreateQueueRequest, QueueStatsResponse, etc.)
 │   │   ├── security/             # CustomAuthenticationEntryPoint (401 JSON), CustomAccessDeniedHandler (403 JSON)
 │   │   └── filter/               # RequestLoggingFilter (OncePerRequestFilter con TraceId y logs auditables)
 │   ├── src/main/resources/
-│   │   ├── application.yml       # Configuración con issuer-uri y audiences de Azure AD
+│   │   ├── application.yml       # Configuración con RabbitMQ, Azure AD, Actuator y Logging
 │   │   └── application-dev.yml
 │   ├── .env.example              # Plantilla de variables de entorno Backend
-│   ├── pom.xml                   # Dependencias Maven oficiales
+│   ├── pom.xml                   # Dependencias Maven oficiales (incluye spring-boot-starter-amqp)
 │   └── Dockerfile                # Build multi-stage: Maven + Java 21 -> JRE 21 Alpine
-├── docker-compose.yml            # Orquestación de Frontend y BFF
-├── SECURITY_TESTS.md             # Guía de pruebas de seguridad y casos cURL
+├── docker-compose.yml            # Orquestación Frontend, BFF y RabbitMQ 3.13 con healthcheck
+├── docker-compose.cluster.yml    # Preparación de cluster RabbitMQ de 2 nodos para EP4
+├── RABBITMQ_GUIDE.md             # Guía técnica completa de RabbitMQ, topología, ACK/NACK, DLQ y API REST
+├── SECURITY_TESTS.md             # Guía de pruebas de seguridad, casos JWT y autorización Admin en RabbitMQ
 └── README.md                     # Manual técnico y guía de ejecución
 ```
 
@@ -109,15 +117,27 @@ SPRING_PROFILES_ACTIVE=dev
 
 ## 🐳 Ejecución con Docker Compose
 
-Para compilar e iniciar la infraestructura completa (Frontend + Backend BFF) mediante Docker:
+Para compilar e iniciar la infraestructura completa (Frontend + Backend BFF + RabbitMQ):
 
 ```bash
-docker-compose up --build
+docker compose up --build -d
 ```
 
 - **Frontend React**: `http://localhost:3000` (o `http://localhost:80`)
 - **Backend Spring Boot BFF**: `http://localhost:8080`
+- **RabbitMQ Management Console**: `http://localhost:15672` (Usuario: `vidasalud`, Contraseña: `vidasalud_local_2026`)
 - **Endpoint de Verificación JWT**: `http://localhost:8080/api/me`
+
+---
+
+## 🐰 Integración RabbitMQ y Mensajería Asíncrona
+
+Consulta la documentación técnica detallada en [`RABBITMQ_GUIDE.md`](RABBITMQ_GUIDE.md):
+- **Topología**: 3 exchanges (`direct`, `topic`, `dlx`), 6 colas durables (3 principales y 3 DLQ).
+- **Procesamiento Asíncrono**: Productores tipados (`AppointmentEventProducer`, `AuditEventProducer`) y consumidores con confirmación manual ACK/NACK sin requeue.
+- **API REST Administrativa**: Endpoints en `/api/admin/amqp/**` protegidos exclusivamente con rol `Admin`.
+- **Pruebas Automatizadas**: Suite completa de tests unitarios, de seguridad y prueba de integración de flujo DLQ.
+- **Preparación Cluster EP4**: Configuración de cluster de 2 nodos en [`docker-compose.cluster.yml`](docker-compose.cluster.yml).
 
 ---
 
@@ -129,3 +149,4 @@ Revisa el archivo [`SECURITY_TESTS.md`](SECURITY_TESTS.md) para ejecutar las pru
 3. **Respuesta 401 Unauthorized JSON** (Sin Token o Token Expirado).
 4. **Respuesta 403 Forbidden JSON** (Falta de Rol en Token JWT).
 5. **Respuesta 200 OK con Claims** (Endpoint `/api/me`).
+6. **Protección Rol Admin en API Administrativa RabbitMQ** (`/api/admin/amqp/**`).

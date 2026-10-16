@@ -1,7 +1,7 @@
-version: '3.8'
-
 services:
-  # Servicio Frontend: React 19 + MSAL (Nginx)
+  # ==========================================
+  # FRONTEND: React 19 + MSAL + Nginx
+  # ==========================================
   frontend:
     build:
       context: ./frontend
@@ -20,7 +20,9 @@ services:
       - bff
     restart: unless-stopped
 
-  # Servicio Backend BFF: Spring Boot 3.5.x (Java 21)
+  # ==========================================
+  # BACKEND: Spring Boot BFF + RabbitMQ
+  # ==========================================
   bff:
     build:
       context: ./ms-vidasalud-bff
@@ -33,10 +35,65 @@ services:
       - AZURE_API_CLIENT_ID=${AZURE_API_CLIENT_ID:-00000000-0000-0000-0000-000000000000}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
       - SERVER_PORT=8080
+
+      # Conexión a RabbitMQ
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-vidasalud}
+      - SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:?Debes definir RABBITMQ_PASSWORD}
+      - SPRING_RABBITMQ_VIRTUAL_HOST=/
+
     networks:
       - vidasalud-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
 
+  # ==========================================
+  # RABBITMQ: Broker de mensajería
+  # ==========================================
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: vidasalud-rabbitmq
+    hostname: rabbitmq
+
+    ports:
+      # Comunicación AMQP
+      - "5672:5672"
+
+      # Panel web disponible solo desde el Mac local
+      - "127.0.0.1:15672:15672"
+
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME:-vidasalud}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:?Debes definir RABBITMQ_PASSWORD}
+      - RABBITMQ_DEFAULT_VHOST=/
+
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+    networks:
+      - vidasalud-net
+
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+    restart: unless-stopped
+
+# ==========================================
+# REDES
+# ==========================================
 networks:
   vidasalud-net:
     driver: bridge
+
+# ==========================================
+# VOLÚMENES PERSISTENTES
+# ==========================================
+volumes:
+  rabbitmq_data:

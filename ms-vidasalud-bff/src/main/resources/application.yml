@@ -12,6 +12,29 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:vidasalud}
+    password: ${SPRING_RABBITMQ_PASSWORD}
+    virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: ${SPRING_RABBITMQ_LISTENER_PREFETCH:10}
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: ${SPRING_RABBITMQ_RETRY_INITIAL_INTERVAL:1000ms}
+          multiplier: ${SPRING_RABBITMQ_RETRY_MULTIPLIER:2.0}
+          max-attempts: ${SPRING_RABBITMQ_RETRY_MAX_ATTEMPTS:3}
+    template:
+      retry:
+        enabled: true
+        initial-interval: 1000ms
+        multiplier: 2.0
+        max-attempts: 3
+
   security:
     oauth2:
       resourceserver:
@@ -40,3 +63,25 @@ logging:
     cl.duoc.vidasalud.bff: DEBUG
     org.springframework.security: DEBUG
     org.springframework.security.oauth2: DEBUG
+
+vidasalud:
+  rabbitmq:
+    exchanges:
+      direct: vidasalud.direct.exchange
+      topic: vidasalud.topic.exchange
+      dlx: vidasalud.dlx.exchange
+    queues:
+      appointment-creation: citas.agendamiento.queue
+      appointment-confirmation: citas.confirmacion.queue
+      notification-audit: notificaciones.auditoria.queue
+      appointment-creation-dlq: citas.agendamiento.dlq
+      appointment-confirmation-dlq: citas.confirmacion.dlq
+      notification-audit-dlq: notificaciones.auditoria.dlq
+    routing-keys:
+      appointment-create: citas.crear
+      appointment-confirm: citas.confirmar
+      notification-audit: vidasalud.notificacion.*
+      notification-audit-default: vidasalud.notificacion.audit
+      appointment-creation-dlq: citas.agendamiento.dlq.rk
+      appointment-confirmation-dlq: citas.confirmacion.dlq.rk
+      notification-audit-dlq: notificaciones.auditoria.dlq.rk

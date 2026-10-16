@@ -61,6 +61,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/audit/**")
                         .hasAnyRole("Admin", "Auditor")
 
+                        // Administración RabbitMQ: Admin exclusivo
+                        .requestMatchers("/api/admin/amqp/**")
+                        .hasRole("Admin")
+
                         .requestMatchers("/api/me").authenticated()
                         .anyRequest().authenticated())
 
