@@ -12,3 +12,6 @@
 
 # Archivos del sistema operativo
 .DS_Store
+
+# Scripts locales auxiliares
+deploy-rabbitmq-cluster.sh
