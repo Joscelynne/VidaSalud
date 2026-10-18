@@ -1,6 +1,6 @@
 package cl.duoc.vidasalud.bff.producer;
 
-import cl.duoc.vidasalud.bff.config.RabbitMQConstants;
+import cl.duoc.vidasalud.bff.config.RabbitMQProperties;
 import cl.duoc.vidasalud.bff.event.NotificationAuditEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +20,7 @@ import java.util.UUID;
 public class AuditEventProducer {
 
     private final RabbitTemplate rabbitTemplate;
+    private final RabbitMQProperties rabbitMQ;
 
     /**
      * Publica un evento de auditoría con la routing key predeterminada: vidasalud.notificacion.audit.
@@ -27,7 +28,7 @@ public class AuditEventProducer {
      * @param event Datos del evento de auditoría
      */
     public void publishNotificationAudit(NotificationAuditEvent event) {
-        publishNotificationAudit(RabbitMQConstants.RK_NOTIFICATION_AUDIT_DEFAULT, event);
+        publishNotificationAudit(rabbitMQ.getRoutingKeys().getNotificationAuditDefault(), event);
     }
 
     /**
@@ -46,15 +47,15 @@ public class AuditEventProducer {
 
         String effectiveRoutingKey = (routingKey != null && !routingKey.isBlank())
                 ? routingKey
-                : RabbitMQConstants.RK_NOTIFICATION_AUDIT_DEFAULT;
+                : rabbitMQ.getRoutingKeys().getNotificationAuditDefault();
 
         log.info("Publicando NotificationAuditEvent hacia [{}], routingKey [{}], eventId [{}]",
-                RabbitMQConstants.EXCHANGE_TOPIC,
+                rabbitMQ.getExchanges().getTopic(),
                 effectiveRoutingKey,
                 event.getEventId());
 
         rabbitTemplate.convertAndSend(
-                RabbitMQConstants.EXCHANGE_TOPIC,
+                rabbitMQ.getExchanges().getTopic(),
                 effectiveRoutingKey,
                 event
         );

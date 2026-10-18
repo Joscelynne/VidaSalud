@@ -1,5 +1,6 @@
 package cl.duoc.vidasalud.bff.event;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,6 +30,8 @@ public class NotificationAuditEvent implements Serializable {
 
     private String action;
     private String resource;
+    /** Accepts the historical producer field while keeping {@code user} as the canonical JSON name. */
+    @JsonAlias("userId")
     private String user;
     private String status;
     private String traceId;

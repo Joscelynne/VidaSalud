@@ -1,6 +1,6 @@
 package cl.duoc.vidasalud.bff.producer;
 
-import cl.duoc.vidasalud.bff.config.RabbitMQConstants;
+import cl.duoc.vidasalud.bff.config.RabbitMQProperties;
 import cl.duoc.vidasalud.bff.event.AppointmentConfirmedEvent;
 import cl.duoc.vidasalud.bff.event.AppointmentCreatedEvent;
 import cl.duoc.vidasalud.bff.event.NotificationAuditEvent;
@@ -31,11 +31,22 @@ class EventAndProducerUnitTest {
     private AppointmentEventProducer appointmentProducer;
     private AuditEventProducer auditProducer;
     private ObjectMapper objectMapper;
+    private RabbitMQProperties rabbitMQ;
 
     @BeforeEach
     void setUp() {
-        appointmentProducer = new AppointmentEventProducer(rabbitTemplate);
-        auditProducer = new AuditEventProducer(rabbitTemplate);
+        rabbitMQ = new RabbitMQProperties();
+        RabbitMQProperties.Exchanges exchanges = new RabbitMQProperties.Exchanges();
+        exchanges.setDirect("vidasalud.direct.exchange");
+        exchanges.setTopic("vidasalud.topic.exchange");
+        rabbitMQ.setExchanges(exchanges);
+        RabbitMQProperties.RoutingKeys keys = new RabbitMQProperties.RoutingKeys();
+        keys.setAppointmentCreate("citas.crear");
+        keys.setAppointmentConfirm("citas.confirmar");
+        keys.setNotificationAuditDefault("vidasalud.notificacion.audit");
+        rabbitMQ.setRoutingKeys(keys);
+        appointmentProducer = new AppointmentEventProducer(rabbitTemplate, rabbitMQ);
+        auditProducer = new AuditEventProducer(rabbitTemplate, rabbitMQ);
 
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
@@ -57,8 +68,8 @@ class EventAndProducerUnitTest {
 
         ArgumentCaptor<AppointmentCreatedEvent> captor = ArgumentCaptor.forClass(AppointmentCreatedEvent.class);
         verify(rabbitTemplate).convertAndSend(
-                eq(RabbitMQConstants.EXCHANGE_DIRECT),
-                eq(RabbitMQConstants.RK_APPOINTMENT_CREATE),
+                eq("vidasalud.direct.exchange"),
+                eq("citas.crear"),
                 captor.capture()
         );
 
@@ -82,8 +93,8 @@ class EventAndProducerUnitTest {
 
         ArgumentCaptor<AppointmentConfirmedEvent> captor = ArgumentCaptor.forClass(AppointmentConfirmedEvent.class);
         verify(rabbitTemplate).convertAndSend(
-                eq(RabbitMQConstants.EXCHANGE_DIRECT),
-                eq(RabbitMQConstants.RK_APPOINTMENT_CONFIRM),
+                eq("vidasalud.direct.exchange"),
+                eq("citas.confirmar"),
                 captor.capture()
         );
 
@@ -109,7 +120,7 @@ class EventAndProducerUnitTest {
 
         ArgumentCaptor<NotificationAuditEvent> captor = ArgumentCaptor.forClass(NotificationAuditEvent.class);
         verify(rabbitTemplate).convertAndSend(
-                eq(RabbitMQConstants.EXCHANGE_TOPIC),
+                eq("vidasalud.topic.exchange"),
                 eq("vidasalud.notificacion.appointment"),
                 captor.capture()
         );
@@ -138,5 +149,29 @@ class EventAndProducerUnitTest {
         assertThat(deserialized.getEventId()).isEqualTo(original.getEventId());
         assertThat(deserialized.getAppointmentId()).isEqualTo(original.getAppointmentId());
         assertThat(deserialized.getTimestamp()).isEqualTo(original.getTimestamp());
+    }
+
+    @Test
+    @DisplayName("Acepta userId histórico y conserva user como nombre JSON canónico")
+    void shouldDeserializeHistoricalAuditUserIdAlias() throws Exception {
+        NotificationAuditEvent event = objectMapper.readValue(
+                "{\"eventId\":\"evt-audit-alias\",\"action\":\"LOGIN\",\"userId\":\"admin@vidasalud.cl\"}",
+                NotificationAuditEvent.class);
+
+        assertThat(event.getUser()).isEqualTo("admin@vidasalud.cl");
+        assertThat(objectMapper.readTree(objectMapper.writeValueAsString(event)).has("user")).isTrue();
+        assertThat(objectMapper.readTree(objectMapper.writeValueAsString(event)).has("userId")).isFalse();
+    }
+
+    @Test
+    @DisplayName("Acepta patientId histórico y conserva patientIdentifier como nombre JSON canónico")
+    void shouldDeserializeHistoricalAppointmentPatientIdAlias() throws Exception {
+        AppointmentCreatedEvent event = objectMapper.readValue(
+                "{\"eventId\":\"evt-appointment-alias\",\"appointmentId\":\"APT-101\",\"patientId\":\"PAT-202\"}",
+                AppointmentCreatedEvent.class);
+
+        assertThat(event.getPatientIdentifier()).isEqualTo("PAT-202");
+        assertThat(objectMapper.readTree(objectMapper.writeValueAsString(event)).has("patientIdentifier")).isTrue();
+        assertThat(objectMapper.readTree(objectMapper.writeValueAsString(event)).has("patientId")).isFalse();
     }
 }

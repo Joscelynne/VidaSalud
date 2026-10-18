@@ -10,11 +10,11 @@ import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import static cl.duoc.vidasalud.bff.config.RabbitMQConstants.*;
 
 /**
  * Configuración integral de RabbitMQ para VidaSalud BFF.
@@ -30,22 +30,22 @@ public class RabbitMQConfig {
     // =========================================================================
 
     @Bean
-    public DirectExchange directExchange() {
-        return ExchangeBuilder.directExchange(EXCHANGE_DIRECT)
+    public DirectExchange directExchange(RabbitMQProperties properties) {
+        return ExchangeBuilder.directExchange(properties.getExchanges().getDirect())
                 .durable(true)
                 .build();
     }
 
     @Bean
-    public TopicExchange topicExchange() {
-        return ExchangeBuilder.topicExchange(EXCHANGE_TOPIC)
+    public TopicExchange topicExchange(RabbitMQProperties properties) {
+        return ExchangeBuilder.topicExchange(properties.getExchanges().getTopic())
                 .durable(true)
                 .build();
     }
 
     @Bean
-    public DirectExchange dlxExchange() {
-        return ExchangeBuilder.directExchange(EXCHANGE_DLX)
+    public DirectExchange dlxExchange(RabbitMQProperties properties) {
+        return ExchangeBuilder.directExchange(properties.getExchanges().getDlx())
                 .durable(true)
                 .build();
     }
@@ -55,26 +55,26 @@ public class RabbitMQConfig {
     // =========================================================================
 
     @Bean
-    public Queue appointmentCreationQueue() {
-        return QueueBuilder.durable(QUEUE_APPOINTMENT_CREATION)
-                .withArgument(X_DEAD_LETTER_EXCHANGE, EXCHANGE_DLX)
-                .withArgument(X_DEAD_LETTER_ROUTING_KEY, RK_APPOINTMENT_CREATION_DLQ)
+    public Queue appointmentCreationQueue(RabbitMQProperties properties) {
+        return QueueBuilder.durable(properties.getQueues().getAppointmentCreation())
+                .withArgument(RabbitMQConstants.X_DEAD_LETTER_EXCHANGE, properties.getExchanges().getDlx())
+                .withArgument(RabbitMQConstants.X_DEAD_LETTER_ROUTING_KEY, properties.getRoutingKeys().getAppointmentCreationDlq())
                 .build();
     }
 
     @Bean
-    public Queue appointmentConfirmationQueue() {
-        return QueueBuilder.durable(QUEUE_APPOINTMENT_CONFIRMATION)
-                .withArgument(X_DEAD_LETTER_EXCHANGE, EXCHANGE_DLX)
-                .withArgument(X_DEAD_LETTER_ROUTING_KEY, RK_APPOINTMENT_CONFIRMATION_DLQ)
+    public Queue appointmentConfirmationQueue(RabbitMQProperties properties) {
+        return QueueBuilder.durable(properties.getQueues().getAppointmentConfirmation())
+                .withArgument(RabbitMQConstants.X_DEAD_LETTER_EXCHANGE, properties.getExchanges().getDlx())
+                .withArgument(RabbitMQConstants.X_DEAD_LETTER_ROUTING_KEY, properties.getRoutingKeys().getAppointmentConfirmationDlq())
                 .build();
     }
 
     @Bean
-    public Queue notificationAuditQueue() {
-        return QueueBuilder.durable(QUEUE_NOTIFICATION_AUDIT)
-                .withArgument(X_DEAD_LETTER_EXCHANGE, EXCHANGE_DLX)
-                .withArgument(X_DEAD_LETTER_ROUTING_KEY, RK_NOTIFICATION_AUDIT_DLQ)
+    public Queue notificationAuditQueue(RabbitMQProperties properties) {
+        return QueueBuilder.durable(properties.getQueues().getNotificationAudit())
+                .withArgument(RabbitMQConstants.X_DEAD_LETTER_EXCHANGE, properties.getExchanges().getDlx())
+                .withArgument(RabbitMQConstants.X_DEAD_LETTER_ROUTING_KEY, properties.getRoutingKeys().getNotificationAuditDlq())
                 .build();
     }
 
@@ -83,20 +83,20 @@ public class RabbitMQConfig {
     // =========================================================================
 
     @Bean
-    public Queue appointmentCreationDlq() {
-        return QueueBuilder.durable(QUEUE_APPOINTMENT_CREATION_DLQ)
+    public Queue appointmentCreationDlq(RabbitMQProperties properties) {
+        return QueueBuilder.durable(properties.getQueues().getAppointmentCreationDlq())
                 .build();
     }
 
     @Bean
-    public Queue appointmentConfirmationDlq() {
-        return QueueBuilder.durable(QUEUE_APPOINTMENT_CONFIRMATION_DLQ)
+    public Queue appointmentConfirmationDlq(RabbitMQProperties properties) {
+        return QueueBuilder.durable(properties.getQueues().getAppointmentConfirmationDlq())
                 .build();
     }
 
     @Bean
-    public Queue notificationAuditDlq() {
-        return QueueBuilder.durable(QUEUE_NOTIFICATION_AUDIT_DLQ)
+    public Queue notificationAuditDlq(RabbitMQProperties properties) {
+        return QueueBuilder.durable(properties.getQueues().getNotificationAuditDlq())
                 .build();
     }
 
@@ -105,24 +105,24 @@ public class RabbitMQConfig {
     // =========================================================================
 
     @Bean
-    public Binding appointmentCreationBinding(Queue appointmentCreationQueue, DirectExchange directExchange) {
+    public Binding appointmentCreationBinding(Queue appointmentCreationQueue, DirectExchange directExchange, RabbitMQProperties properties) {
         return BindingBuilder.bind(appointmentCreationQueue)
                 .to(directExchange)
-                .with(RK_APPOINTMENT_CREATE);
+                .with(properties.getRoutingKeys().getAppointmentCreate());
     }
 
     @Bean
-    public Binding appointmentConfirmationBinding(Queue appointmentConfirmationQueue, DirectExchange directExchange) {
+    public Binding appointmentConfirmationBinding(Queue appointmentConfirmationQueue, DirectExchange directExchange, RabbitMQProperties properties) {
         return BindingBuilder.bind(appointmentConfirmationQueue)
                 .to(directExchange)
-                .with(RK_APPOINTMENT_CONFIRM);
+                .with(properties.getRoutingKeys().getAppointmentConfirm());
     }
 
     @Bean
-    public Binding notificationAuditBinding(Queue notificationAuditQueue, TopicExchange topicExchange) {
+    public Binding notificationAuditBinding(Queue notificationAuditQueue, TopicExchange topicExchange, RabbitMQProperties properties) {
         return BindingBuilder.bind(notificationAuditQueue)
                 .to(topicExchange)
-                .with(RK_NOTIFICATION_TOPIC_PATTERN);
+                .with(properties.getRoutingKeys().getNotificationAudit());
     }
 
     // =========================================================================
@@ -130,24 +130,24 @@ public class RabbitMQConfig {
     // =========================================================================
 
     @Bean
-    public Binding appointmentCreationDlqBinding(Queue appointmentCreationDlq, DirectExchange dlxExchange) {
+    public Binding appointmentCreationDlqBinding(Queue appointmentCreationDlq, DirectExchange dlxExchange, RabbitMQProperties properties) {
         return BindingBuilder.bind(appointmentCreationDlq)
                 .to(dlxExchange)
-                .with(RK_APPOINTMENT_CREATION_DLQ);
+                .with(properties.getRoutingKeys().getAppointmentCreationDlq());
     }
 
     @Bean
-    public Binding appointmentConfirmationDlqBinding(Queue appointmentConfirmationDlq, DirectExchange dlxExchange) {
+    public Binding appointmentConfirmationDlqBinding(Queue appointmentConfirmationDlq, DirectExchange dlxExchange, RabbitMQProperties properties) {
         return BindingBuilder.bind(appointmentConfirmationDlq)
                 .to(dlxExchange)
-                .with(RK_APPOINTMENT_CONFIRMATION_DLQ);
+                .with(properties.getRoutingKeys().getAppointmentConfirmationDlq());
     }
 
     @Bean
-    public Binding notificationAuditDlqBinding(Queue notificationAuditDlq, DirectExchange dlxExchange) {
+    public Binding notificationAuditDlqBinding(Queue notificationAuditDlq, DirectExchange dlxExchange, RabbitMQProperties properties) {
         return BindingBuilder.bind(notificationAuditDlq)
                 .to(dlxExchange)
-                .with(RK_NOTIFICATION_AUDIT_DLQ);
+                .with(properties.getRoutingKeys().getNotificationAuditDlq());
     }
 
     // =========================================================================
@@ -177,12 +177,14 @@ public class RabbitMQConfig {
 
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
+            SimpleRabbitListenerContainerFactoryConfigurer configurer,
             ConnectionFactory connectionFactory,
             MessageConverter jsonMessageConverter,
             @Value("${spring.rabbitmq.listener.simple.prefetch:10}") int prefetch) {
 
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
-        factory.setConnectionFactory(connectionFactory);
+        // Aplica también la política retry definida en application.yml al factory personalizado.
+        configurer.configure(factory, connectionFactory);
         factory.setMessageConverter(jsonMessageConverter);
         factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
         factory.setPrefetchCount(prefetch);

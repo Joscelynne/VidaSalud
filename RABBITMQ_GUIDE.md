@@ -2,6 +2,8 @@
 
 Documentación técnica integral sobre la arquitectura de mensajería asíncrona, topología de colas, Dead Letter Queues (DLQ), confirmación manual ACK/NACK, API administrativa REST, seguridad con Microsoft Entra ID y preparación para cluster de alta disponibilidad (EP4).
 
+> **Alcance seguro:** los comandos de inicio, publicación, purga, eliminación y despliegue de esta guía son ejemplos para un entorno local descartable. No ejecutar contra AWS ni contra un broker compartido. Para comprobar DLQ, usar primero la prueba aislada de la sección 7; cualquier verificación en el broker de evaluación requiere autorización explícita.
+
 ---
 
 ## 1. Arquitectura de Mensajería Asíncrona
@@ -71,9 +73,14 @@ Las DLQs almacenan los mensajes no procesables para auditoría, inspección y re
 | `SPRING_RABBITMQ_VIRTUAL_HOST` | Virtual host en RabbitMQ | `/` |
 | `SPRING_RABBITMQ_LISTENER_PREFETCH` | Prefetch count de consumidores | `10` |
 | `SPRING_RABBITMQ_RETRY_MAX_ATTEMPTS` | Intentos máximos de retry en listener | `3` |
+| `SPRING_DATASOURCE_URL` | URL de PostgreSQL (en AWS, endpoint RDS con `sslmode=require`) | `jdbc:postgresql://localhost:5432/vidasalud` |
+| `SPRING_DATASOURCE_USERNAME` | Usuario PostgreSQL/RDS | `vidasalud` (solo local) |
+| `SPRING_DATASOURCE_PASSWORD` | Secreto PostgreSQL/RDS | `vidasalud_local_2026` (solo local) |
 
 > [!CAUTION]
 > La contraseña `vidasalud_local_2026` es exclusiva para entornos de desarrollo local en contenedores aislados. Nunca debe utilizarse en entornos de producción o staging.
+
+La confirmación de una cita ahora se persiste en la tabla `vidasalud_appointments`, administrada por Flyway. La migración crea una tabla nueva y no modifica tablas preexistentes. Los registros ficticios `APT-101` a `APT-103` se cargan únicamente al habilitar `SPRING_SQL_INIT_MODE=always`; déjalo en `never` cuando `SPRING_DATASOURCE_URL` apunte a RDS.
 
 ---
 
@@ -129,8 +136,8 @@ docker exec vidasalud-rabbitmq rabbitmqctl list_queues name messages consumers
 3. RabbitMQ detecta el rechazo con `requeue=false` e inspecciona los argumentos de la cola (`x-dead-letter-exchange` y `x-dead-letter-routing-key`).
 4. El broker enruta automáticamente el mensaje fallido hacia `vidasalud.dlx.exchange`, el cual lo deposita en la DLQ correspondiente (`citas.agendamiento.dlq`).
 
-### 5.3 Simulación Controlada de Fallos para Pruebas
-Para probar que un mensaje viaja a la DLQ de forma controlada en desarrollo o pruebas:
+### 5.3 Simulación Controlada de Fallos para Pruebas Locales
+La simulación siguiente es únicamente para un entorno local aislado. No publiques este evento en el broker de producción o en un broker compartido:
 - Incluir en `notes` el texto `"SIMULATE_FAIL"`.
 - O prefijar el `appointmentId` con `"FAIL-"` (ej. `"FAIL-APT-999"`).
 
@@ -150,7 +157,9 @@ Toda la API administrativa está protegida y exige exclusivamente el rol **Admin
 | `DELETE` | `/api/admin/amqp/queues/{name}` | Eliminar una cola existente | `200 OK` |
 | `POST` | `/api/admin/amqp/queues/{name}/purge` | Purgar mensajes de una cola | `200 OK` |
 | `POST` | `/api/admin/amqp/exchanges` | Declarar un exchange (direct, topic o fanout) | `201 Created` |
+| `DELETE` | `/api/admin/amqp/exchanges/{name}` | Eliminar un exchange existente | `200 OK` |
 | `POST` | `/api/admin/amqp/bindings` | Declarar un binding entre exchange y cola | `201 Created` |
+| `DELETE` | `/api/admin/amqp/bindings?destination=...&destinationType=QUEUE&exchange=...&routingKey=...` | Eliminar un binding por su identidad completa | `200 OK` |
 | `POST` | `/api/admin/amqp/test-publish` | Publicar un mensaje de prueba en exchange y routing key | `200 OK` |
 
 ### 6.2 Ejemplos cURL
@@ -222,7 +231,19 @@ curl -i -X POST http://localhost:8080/api/admin/amqp/queues/citas.agendamiento.d
 
 ---
 
-## 7. Ejecución de Pruebas Automatizadas
+## 7. Verificación Reproducible y Segura de la DLQ
+
+La verificación recomendada usa `RabbitMQDeadLetterIntegrationTest`, que inicia un broker RabbitMQ descartable mediante Testcontainers, crea un identificador único y comprueba el mensaje y su cabecera `x-death` en la DLQ. No usa el broker configurado en AWS ni consume mensajes de colas compartidas. Requiere Docker activo localmente.
+
+Desde `ms-vidasalud-bff`:
+
+```bash
+mvn -Dtest=RabbitMQDeadLetterIntegrationTest test
+```
+
+El resultado esperado es `BUILD SUCCESS`. Si Docker no está disponible, Testcontainers omite esta integración (el test está configurado con `disabledWithoutDocker = true`); eso no cuenta como verificación aprobada. Para comprobar RabbitMQ en AWS en la presentación, usa el procedimiento acordado para el broker de evaluación y una autorización explícita antes de publicar un mensaje de prueba. Nunca uses `Purge`, `Delete` o `Ack` para esta verificación.
+
+## 8. Ejecución de Pruebas Automatizadas
 
 Para compilar y ejecutar la suite completa de pruebas unitarias, de seguridad y de integración:
 
@@ -231,13 +252,13 @@ cd ms-vidasalud-bff
 mvn clean test
 ```
 
-### Cobertura de la Suite de Pruebas:
+### Cobertura prevista de la Suite de Pruebas:
 1. `RabbitMQConfigUnitTest`: Valida los 3 exchanges, las 6 colas durables, los argumentos DLX y los 6 bindings.
 2. `EventAndProducerUnitTest`: Valida publicación tipada, routing keys, y serialización Jackson JSON con soporte JSR-310 (Instant).
 3. `ConsumerAckNackUnitTest`: Valida confirmación manual ACK ante eventos válidos y NACK sin requeue ante eventos inválidos o simulaciones de fallo.
 4. `RabbitAdminServiceUnitTest`: Valida operaciones administrativas de colas, exchanges, bindings, purga, eliminación y excepciones `QueueNotFoundException`.
-5. `RabbitAdminControllerSecurityTest`: Valida rechazo 401 sin token, rechazo 403 para roles sin privilegios (`Paciente`, `Recepcionista`, `Auditor`), autorización 200/201 para `Admin`, validaciones 400 y errores 404.
-6. `RabbitMQDeadLetterIntegrationTest`: Prueba de integración real que publica un evento fallido (`FAIL-`), verifica el NACK del consumidor y comprueba su llegada efectiva a la DLQ `citas.agendamiento.dlq`.
+5. `RabbitMQDeadLetterIntegrationTest`: Valida publicación, rechazo, recepción en DLQ y metadatos `x-death` usando un broker efímero de Testcontainers.
+6. `RabbitAdminControllerSecurityTest`: Valida rechazo 401 sin token, rechazo 403 para roles sin privilegios (`Paciente`, `Recepcionista`, `Auditor`), autorización 200/201 para `Admin`, validaciones 400 y errores 404.
 
 ---
 
@@ -399,7 +420,12 @@ curl -s -X GET http://localhost:8080/api/admin/amqp/queues/citas.agendamiento.qu
 
 **Explicar**: "La API administrativa está protegida con `@PreAuthorize("hasRole('Admin')")`. Solo usuarios con el rol Admin en Microsoft Entra ID pueden gestionar RabbitMQ."
 
-#### Paso 5: Limpiar DLQ (1 min)
+#### Paso 5: Cerrar la evidencia sin alterar la cola
+
+Detén la grabación mostrando el mensaje identificado y el contador de la DLQ. No purgues la cola ni confirmes (`Ack`) el mensaje; consérvalo para inspección posterior.
+
+<!--
+Comandos antiguos de purga retirados: no vaciar colas para preparar una evidencia.
 ```bash
 # Purgar la DLQ de pruebas
 curl -X POST http://localhost:8080/api/admin/amqp/queues/citas.agendamiento.dlq/purge \
@@ -409,6 +435,7 @@ curl -X POST http://localhost:8080/api/admin/amqp/queues/citas.agendamiento.dlq/
 curl -s -X GET http://localhost:8080/api/admin/amqp/queues/citas.agendamiento.dlq \
   -H "Authorization: Bearer $ADMIN_TOKEN" | jq .messageCount
 ```
+-->
 
 ### 10.3 Puntos Clave para la Presentación
 
@@ -434,6 +461,8 @@ curl -s -X GET http://localhost:8080/api/admin/amqp/queues/citas.agendamiento.dl
 ---
 
 ## 11. Despliegue en AWS EC2 (Procedimiento Seguro)
+
+> **Procedimiento histórico, no ejecutar:** los pasos y el identificador de instancia de esta sección no se han validado para el despliegue actual y pueden estar obsoletos. La actualización actual del BFF se coordina por separado y requiere autorización explícita. No uses estos comandos para el video.
 
 ### 11.1 Pre-requisitos en EC2
 - Instancia existente con Docker instalado
@@ -554,7 +583,7 @@ docker stop vidasalud-rabbitmq && docker rm vidasalud-rabbitmq
 | API Admin REST | ✅ Completo | `RabbitAdminController.java`, `RabbitAdminService.java` |
 | Seguridad (@PreAuthorize) | ✅ Completo | Solo rol Admin puede acceder a `/api/admin/amqp/**` |
 | Dead Letter Queues | ✅ Completo | 3 DLQs configuradas con bindings al DLX |
-| Tests Unitarios | ✅ 34 tests | 0 fallos, 0 errores |
+| Tests Unitarios | Suite disponible | Pendiente de ejecutar en el entorno local |
 | Docker Compose Local | ✅ Completo | `docker-compose.yml` |
 | Docker Compose Cluster | ✅ Completo | `docker-compose.cluster.yml` (2 nodos) |
 | Documentación | ✅ Completo | `RABBITMQ_GUIDE.md` |

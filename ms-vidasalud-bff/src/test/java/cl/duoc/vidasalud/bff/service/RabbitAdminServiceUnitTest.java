@@ -1,6 +1,7 @@
 package cl.duoc.vidasalud.bff.service;
 
 import cl.duoc.vidasalud.bff.config.RabbitMQConstants;
+import cl.duoc.vidasalud.bff.config.VidaSaludTopologyConfig;
 import cl.duoc.vidasalud.bff.dto.amqp.*;
 import cl.duoc.vidasalud.bff.exception.QueueNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,11 +32,30 @@ class RabbitAdminServiceUnitTest {
     @Mock
     private RabbitTemplate rabbitTemplate;
 
+    private VidaSaludTopologyConfig topologyConfig;
     private RabbitAdminService service;
 
     @BeforeEach
     void setUp() {
-        service = new RabbitAdminService(amqpAdmin, rabbitTemplate);
+        // Configuración manual de la topología protegida (sin Spring Context)
+        topologyConfig = new VidaSaludTopologyConfig();
+        
+        VidaSaludTopologyConfig.Exchanges exchanges = new VidaSaludTopologyConfig.Exchanges();
+        exchanges.setDirect("vidasalud.direct.exchange");
+        exchanges.setTopic("vidasalud.topic.exchange");
+        exchanges.setDlx("vidasalud.dlx.exchange");
+        topologyConfig.setExchanges(exchanges);
+        
+        VidaSaludTopologyConfig.Queues queues = new VidaSaludTopologyConfig.Queues();
+        queues.setAppointmentCreation("citas.agendamiento.queue");
+        queues.setAppointmentConfirmation("citas.confirmacion.queue");
+        queues.setNotificationAudit("notificaciones.auditoria.queue");
+        queues.setAppointmentCreationDlq("citas.agendamiento.dlq");
+        queues.setAppointmentConfirmationDlq("citas.confirmacion.dlq");
+        queues.setNotificationAuditDlq("notificaciones.auditoria.dlq");
+        topologyConfig.setQueues(queues);
+        
+        service = new RabbitAdminService(amqpAdmin, rabbitTemplate, topologyConfig);
     }
 
     @Test
@@ -49,6 +69,12 @@ class RabbitAdminServiceUnitTest {
                 .messageTtl(60000)
                 .maxLength(500)
                 .build();
+
+        // Mock: declareQueue retorna el nombre y getQueueInfo confirma existencia
+        when(amqpAdmin.declareQueue(any())).thenReturn("test.custom.queue");
+        when(amqpAdmin.getQueueInfo("test.custom.queue")).thenReturn(
+                new QueueInformation("test.custom.queue", 0, 0)
+        );
 
         String createdName = service.createQueue(request);
 
@@ -153,8 +179,8 @@ class RabbitAdminServiceUnitTest {
                 .build();
 
         assertThatThrownBy(() -> service.createExchange(invalid))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Tipo de exchange no soportado");
+                .isInstanceOf(cl.duoc.vidasalud.bff.exception.AmqpValidationException.class)
+                .hasMessageContaining("no está soportado");
     }
 
     @Test

@@ -3,6 +3,7 @@ package cl.duoc.vidasalud.bff.consumer;
 import cl.duoc.vidasalud.bff.event.AppointmentConfirmedEvent;
 import cl.duoc.vidasalud.bff.event.AppointmentCreatedEvent;
 import cl.duoc.vidasalud.bff.event.NotificationAuditEvent;
+import cl.duoc.vidasalud.bff.config.RabbitMQProperties;
 import com.rabbitmq.client.Channel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,9 +29,15 @@ class ConsumerAckNackUnitTest {
 
     @BeforeEach
     void setUp() {
-        creationConsumer = new AppointmentCreationConsumer();
-        confirmationConsumer = new AppointmentConfirmationConsumer();
-        auditConsumer = new NotificationAuditConsumer();
+        RabbitMQProperties properties = new RabbitMQProperties();
+        RabbitMQProperties.Queues queues = new RabbitMQProperties.Queues();
+        queues.setAppointmentCreation("citas.agendamiento.queue");
+        queues.setAppointmentConfirmation("citas.confirmacion.queue");
+        queues.setNotificationAudit("notificaciones.auditoria.queue");
+        properties.setQueues(queues);
+        creationConsumer = new AppointmentCreationConsumer(properties);
+        confirmationConsumer = new AppointmentConfirmationConsumer(properties);
+        auditConsumer = new NotificationAuditConsumer(properties);
     }
 
     // =========================================================================

@@ -1,9 +1,10 @@
 package cl.duoc.vidasalud.bff.consumer;
 
-import cl.duoc.vidasalud.bff.config.RabbitMQConstants;
+import cl.duoc.vidasalud.bff.config.RabbitMQProperties;
 import cl.duoc.vidasalud.bff.event.AppointmentCreatedEvent;
 import com.rabbitmq.client.Channel;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -20,10 +21,13 @@ import java.io.IOException;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class AppointmentCreationConsumer {
 
+    private final RabbitMQProperties rabbitMQ;
+
     @RabbitListener(
-            queues = RabbitMQConstants.QUEUE_APPOINTMENT_CREATION,
+            queues = "${vidasalud.rabbitmq.queues.appointment-creation}",
             containerFactory = "rabbitListenerContainerFactory"
     )
     public void receiveAppointmentCreated(AppointmentCreatedEvent event,
@@ -31,7 +35,7 @@ public class AppointmentCreationConsumer {
                                            @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
 
         log.debug("Mensaje recibido en [{}] con deliveryTag [{}]",
-                RabbitMQConstants.QUEUE_APPOINTMENT_CREATION, deliveryTag);
+                rabbitMQ.getQueues().getAppointmentCreation(), deliveryTag);
 
         try {
             validateEvent(event);
@@ -47,10 +51,12 @@ public class AppointmentCreationConsumer {
                     ex.getMessage());
             channel.basicNack(deliveryTag, false, false);
 
-        } catch (Exception ex) {
-            log.error("Fallo inesperado al procesar cita agendada. Ejecutando basicNack (requeue=false) hacia DLQ: {}",
+        } catch (RuntimeException ex) {
+            // Deja que el RetryInterceptor configurado en application.yml haga los intentos acotados.
+            // Tras agotarlos, el recoverer rechaza sin requeue y RabbitMQ enruta el mensaje a la DLQ.
+            log.warn("Fallo recuperable al procesar cita agendada; se aplicarán reintentos: {}",
                     ex.getMessage(), ex);
-            channel.basicNack(deliveryTag, false, false);
+            throw ex;
         }
     }
 

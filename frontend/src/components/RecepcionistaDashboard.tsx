@@ -34,9 +34,8 @@ export const RecepcionistaDashboard: React.FC = () => {
       await appointmentService.confirmAppointment(id);
       fetchAppointments();
     } catch {
-      setAppointments((prev) =>
-        prev.map((apt) => (apt.id === id ? { ...apt, status: 'CONFIRMED' } : apt))
-      );
+      // Re-read the server state; a failed request must never look like a confirmation.
+      fetchAppointments();
     }
   };
 

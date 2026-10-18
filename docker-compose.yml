@@ -35,6 +35,10 @@ services:
       - AZURE_API_CLIENT_ID=${AZURE_API_CLIENT_ID:-00000000-0000-0000-0000-000000000000}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
       - SERVER_PORT=8080
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/vidasalud}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME:-vidasalud}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:-vidasalud_local_2026}
+      - SPRING_SQL_INIT_MODE=${SPRING_SQL_INIT_MODE:-never}
 
       # Conexión a RabbitMQ
       - SPRING_RABBITMQ_HOST=rabbitmq
@@ -47,6 +51,8 @@ services:
       - vidasalud-net
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 
@@ -85,6 +91,27 @@ services:
 
     restart: unless-stopped
 
+  # PostgreSQL local descartable. En AWS, configurar SPRING_DATASOURCE_* para RDS.
+  postgres:
+    image: postgres:16-alpine
+    container_name: vidasalud-postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: vidasalud
+      POSTGRES_USER: ${SPRING_DATASOURCE_USERNAME:-vidasalud}
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-vidasalud_local_2026}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vidasalud-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${SPRING_DATASOURCE_USERNAME:-vidasalud} -d vidasalud" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
 # ==========================================
 # REDES
 # ==========================================
@@ -97,3 +124,4 @@ networks:
 # ==========================================
 volumes:
   rabbitmq_data:
+  postgres_data:

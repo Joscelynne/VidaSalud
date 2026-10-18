@@ -1,6 +1,6 @@
 package cl.duoc.vidasalud.bff.producer;
 
-import cl.duoc.vidasalud.bff.config.RabbitMQConstants;
+import cl.duoc.vidasalud.bff.config.RabbitMQProperties;
 import cl.duoc.vidasalud.bff.event.AppointmentConfirmedEvent;
 import cl.duoc.vidasalud.bff.event.AppointmentCreatedEvent;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +21,7 @@ import java.util.UUID;
 public class AppointmentEventProducer {
 
     private final RabbitTemplate rabbitTemplate;
+    private final RabbitMQProperties rabbitMQ;
 
     /**
      * Publica un evento de creación de cita en el Direct Exchange.
@@ -36,13 +37,13 @@ public class AppointmentEventProducer {
         }
 
         log.info("Publicando AppointmentCreatedEvent hacia [{}], routingKey [{}], eventId [{}]",
-                RabbitMQConstants.EXCHANGE_DIRECT,
-                RabbitMQConstants.RK_APPOINTMENT_CREATE,
+                rabbitMQ.getExchanges().getDirect(),
+                rabbitMQ.getRoutingKeys().getAppointmentCreate(),
                 event.getEventId());
 
         rabbitTemplate.convertAndSend(
-                RabbitMQConstants.EXCHANGE_DIRECT,
-                RabbitMQConstants.RK_APPOINTMENT_CREATE,
+                rabbitMQ.getExchanges().getDirect(),
+                rabbitMQ.getRoutingKeys().getAppointmentCreate(),
                 event
         );
     }
@@ -61,13 +62,13 @@ public class AppointmentEventProducer {
         }
 
         log.info("Publicando AppointmentConfirmedEvent hacia [{}], routingKey [{}], eventId [{}]",
-                RabbitMQConstants.EXCHANGE_DIRECT,
-                RabbitMQConstants.RK_APPOINTMENT_CONFIRM,
+                rabbitMQ.getExchanges().getDirect(),
+                rabbitMQ.getRoutingKeys().getAppointmentConfirm(),
                 event.getEventId());
 
         rabbitTemplate.convertAndSend(
-                RabbitMQConstants.EXCHANGE_DIRECT,
-                RabbitMQConstants.RK_APPOINTMENT_CONFIRM,
+                rabbitMQ.getExchanges().getDirect(),
+                rabbitMQ.getRoutingKeys().getAppointmentConfirm(),
                 event
         );
     }

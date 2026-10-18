@@ -95,6 +95,19 @@ public class RabbitAdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /** Deletes an exchange from RabbitMQ. */
+    @DeleteMapping("/exchanges/{name}")
+    public ResponseEntity<AmqpOperationResponse> deleteExchange(@PathVariable String name) {
+        rabbitAdminService.deleteExchange(name);
+        AmqpOperationResponse response = AmqpOperationResponse.builder()
+                .timestamp(Instant.now().toString())
+                .status("DELETED")
+                .message("Exchange eliminado exitosamente")
+                .data(Map.of("exchangeName", name))
+                .build();
+        return ResponseEntity.ok(response);
+    }
+
     /**
      * Declara un binding entre un exchange y una cola o exchange destino.
      */
@@ -112,6 +125,24 @@ public class RabbitAdminController {
                 ))
                 .build();
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /** Removes a binding by destination, type, exchange and routing key query parameters. */
+    @DeleteMapping("/bindings")
+    public ResponseEntity<AmqpOperationResponse> deleteBinding(@Valid @ModelAttribute CreateBindingRequest request) {
+        rabbitAdminService.deleteBinding(request);
+        AmqpOperationResponse response = AmqpOperationResponse.builder()
+                .timestamp(Instant.now().toString())
+                .status("DELETED")
+                .message("Binding eliminado exitosamente")
+                .data(Map.of(
+                        "destination", request.getDestination(),
+                        "destinationType", request.getDestinationType(),
+                        "exchange", request.getExchange(),
+                        "routingKey", request.getRoutingKey()
+                ))
+                .build();
+        return ResponseEntity.ok(response);
     }
 
     /**

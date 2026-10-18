@@ -17,4 +17,6 @@ public class ErrorResponse {
     private String error;
     private String message;
     private String path;
+    /** Código de error específico para errores de validación AMQP (opcional). */
+    private String errorCode;
 }

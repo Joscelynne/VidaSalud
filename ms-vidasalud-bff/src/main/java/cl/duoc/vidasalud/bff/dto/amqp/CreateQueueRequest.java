@@ -2,6 +2,7 @@ package cl.duoc.vidasalud.bff.dto.amqp;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -32,6 +33,8 @@ public class CreateQueueRequest {
     // Configuración Dead Letter Queue (DLQ) opcional
     private String deadLetterExchange;
     private String deadLetterRoutingKey;
+    @Positive(message = "messageTtl debe ser mayor que cero")
     private Integer messageTtl;
+    @Positive(message = "maxLength debe ser mayor que cero")
     private Integer maxLength;
 }

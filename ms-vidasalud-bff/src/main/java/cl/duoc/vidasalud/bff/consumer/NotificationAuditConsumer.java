@@ -1,9 +1,10 @@
 package cl.duoc.vidasalud.bff.consumer;
 
-import cl.duoc.vidasalud.bff.config.RabbitMQConstants;
+import cl.duoc.vidasalud.bff.config.RabbitMQProperties;
 import cl.duoc.vidasalud.bff.event.NotificationAuditEvent;
 import com.rabbitmq.client.Channel;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -19,10 +20,13 @@ import java.io.IOException;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class NotificationAuditConsumer {
 
+    private final RabbitMQProperties rabbitMQ;
+
     @RabbitListener(
-            queues = RabbitMQConstants.QUEUE_NOTIFICATION_AUDIT,
+            queues = "${vidasalud.rabbitmq.queues.notification-audit}",
             containerFactory = "rabbitListenerContainerFactory"
     )
     public void receiveNotificationAudit(NotificationAuditEvent event,
@@ -30,7 +34,7 @@ public class NotificationAuditConsumer {
                                           @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
 
         log.debug("Mensaje recibido en [{}] con deliveryTag [{}]",
-                RabbitMQConstants.QUEUE_NOTIFICATION_AUDIT, deliveryTag);
+                rabbitMQ.getQueues().getNotificationAudit(), deliveryTag);
 
         try {
             validateEvent(event);
@@ -46,10 +50,10 @@ public class NotificationAuditConsumer {
                     ex.getMessage());
             channel.basicNack(deliveryTag, false, false);
 
-        } catch (Exception ex) {
-            log.error("Fallo inesperado al procesar auditoría. Ejecutando basicNack hacia DLQ: {}",
+        } catch (RuntimeException ex) {
+            log.warn("Fallo recuperable al procesar auditoría; se aplicarán reintentos: {}",
                     ex.getMessage(), ex);
-            channel.basicNack(deliveryTag, false, false);
+            throw ex;
         }
     }
 

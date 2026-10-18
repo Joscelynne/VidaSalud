@@ -1,6 +1,7 @@
 package cl.duoc.vidasalud.bff.controller;
 
 import cl.duoc.vidasalud.bff.dto.ErrorResponse;
+import cl.duoc.vidasalud.bff.exception.AmqpValidationException;
 import cl.duoc.vidasalud.bff.exception.QueueNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -34,12 +35,38 @@ public class GlobalExceptionHandler {
 
         log.warn("Error de validación en [{}]: {}", request.getRequestURI(), validationErrors);
 
+        String errorCode = null;
+        for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
+            String field = fieldError.getField();
+            Object rejectedValue = fieldError.getRejectedValue();
+            String code = fieldError.getCode();
+
+            boolean isEmpty = rejectedValue == null || (rejectedValue instanceof String str && str.isBlank());
+            if ("name".equals(field) || "queueName".equals(field) || "exchangeName".equals(field)
+                    || "destination".equals(field) || "exchange".equals(field)) {
+                if (isEmpty || "NotBlank".equals(code) || "NotEmpty".equals(code) || "NotNull".equals(code)) {
+                    errorCode = "AMQP_EMPTY_NAME";
+                    break;
+                } else if ("Pattern".equals(code)) {
+                    errorCode = "AMQP_INVALID_CHARACTERS";
+                    break;
+                }
+            } else if ("type".equals(field) && "Pattern".equals(code)) {
+                errorCode = "AMQP_UNSUPPORTED_EXCHANGE_TYPE";
+                break;
+            } else if ("destinationType".equals(field)) {
+                errorCode = "AMQP_INVALID_DESTINATION_TYPE";
+                break;
+            }
+        }
+
         ErrorResponse response = ErrorResponse.builder()
                 .timestamp(Instant.now().toString())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("Bad Request")
                 .message("Validación fallida: " + validationErrors)
                 .path(request.getRequestURI())
+                .errorCode(errorCode)
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -49,12 +76,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
         log.warn("Argumento inválido en [{}]: {}", request.getRequestURI(), ex.getMessage());
 
+        String errorCode = null;
+        if (ex.getMessage() != null) {
+            String msgLower = ex.getMessage().toLowerCase();
+            if (msgLower.contains("vacío") || msgLower.contains("vacio") || msgLower.contains("espacios en blanco")) {
+                errorCode = "AMQP_EMPTY_NAME";
+            }
+        }
+
         ErrorResponse response = ErrorResponse.builder()
                 .timestamp(Instant.now().toString())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("Bad Request")
                 .message(ex.getMessage())
                 .path(request.getRequestURI())
+                .errorCode(errorCode)
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -73,6 +109,22 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(AmqpValidationException.class)
+    public ResponseEntity<ErrorResponse> handleAmqpValidation(AmqpValidationException ex, HttpServletRequest request) {
+        log.warn("Error de validación AMQP [{}] en [{}]: {}", ex.getErrorCode(), request.getRequestURI(), ex.getMessage());
+
+        ErrorResponse response = ErrorResponse.builder()
+                .timestamp(Instant.now().toString())
+                .status(ex.getHttpStatus().value())
+                .error(ex.getHttpStatus().getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .errorCode(ex.getErrorCode())
+                .build();
+
+        return ResponseEntity.status(ex.getHttpStatus()).body(response);
     }
 
     @ExceptionHandler({AmqpConnectException.class, AmqpException.class})

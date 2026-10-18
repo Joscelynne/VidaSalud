@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 @DisplayName("Pruebas de Seguridad y Validación REST para /api/admin/amqp/**")
 class RabbitAdminControllerSecurityTest {
 
@@ -141,7 +141,7 @@ class RabbitAdminControllerSecurityTest {
     // CASO 4: VALIDACIÓN DE SOLICITUDES INVÁLIDAS (400 BAD REQUEST)
     // =========================================================================
     @Test
-    @DisplayName("4. Rechaza solicitud de creación con nombre de cola vacío retornando HTTP 400 Bad Request")
+    @DisplayName("4. Rechaza solicitud de creación con nombre de cola vacío retornando HTTP 400 Bad Request y errorCode AMQP_EMPTY_NAME")
     void shouldReturn400WhenQueueNameIsInvalid() throws Exception {
         CreateQueueRequest invalidRequest = CreateQueueRequest.builder()
                 .name("") // Inválido: NotBlank
@@ -155,6 +155,7 @@ class RabbitAdminControllerSecurityTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.errorCode").value("AMQP_EMPTY_NAME"))
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Validación fallida")));
     }
 

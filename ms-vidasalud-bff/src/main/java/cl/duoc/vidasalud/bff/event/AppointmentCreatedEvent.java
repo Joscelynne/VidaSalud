@@ -1,5 +1,6 @@
 package cl.duoc.vidasalud.bff.event;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,6 +30,8 @@ public class AppointmentCreatedEvent implements Serializable {
     private Instant timestamp = Instant.now();
 
     private String appointmentId;
+    /** Accepts the historical producer field while keeping {@code patientIdentifier} canonical. */
+    @JsonAlias("patientId")
     private String patientIdentifier;
     private String patientName;
     private String doctorName;
