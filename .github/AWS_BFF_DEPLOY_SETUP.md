@@ -1,39 +1,31 @@
-# Configuración inicial del despliegue automático del BFF
+# Despliegue del BFF con AWS Academy
 
-El workflow `.github/workflows/bff-ci-cd.yml` ejecuta pruebas para los PR que cambian `ms-vidasalud-bff/`. Después del merge a `main`, construye una imagen `linux/amd64`, la publica en ECR con el SHA del commit y despliega ese digest en EC2 mediante Systems Manager (SSM). El script conserva variables de entorno, puertos, redes Docker y política de reinicio del contenedor actual; verifica `/actuator/health` y restaura el contenedor previo si el nuevo no queda saludable.
+Este pipeline evita OIDC, creación de roles IAM, Systems Manager y publicación en ECR. GitHub ejecuta las pruebas en un runner hospedado; cuando un cambio del backend llega a `main`, un runner autohospedado en la instancia EC2 construye la imagen Docker y reemplaza localmente el contenedor `vidasalud-bff`.
 
-## Variables del repositorio GitHub
+## Qué configurar en GitHub
 
-En **Settings → Secrets and variables → Actions → Variables**, configura:
+No hacen falta secretos ni variables de AWS para este flujo. En el repositorio, abre **Settings → Actions → Runners → New self-hosted runner**, selecciona **Linux** y **x64**, y sigue las instrucciones que GitHub genera para registrar el runner en la instancia EC2. Esas instrucciones incluyen un token temporal de registro: úsalo para instalar el runner y no lo guardes en el repositorio.
 
-| Variable | Valor |
-| --- | --- |
-| `AWS_REGION` | `us-east-1` |
-| `AWS_ACCOUNT_ID` | ID de cuenta AWS que contiene ECR y EC2 |
-| `ECR_REPOSITORY` | `ms-vidasalud-bff` |
-| `BFF_EC2_INSTANCE_ID` | ID de la instancia EC2 que ejecuta `vidasalud-bff` |
-| `AWS_DEPLOY_ROLE_ARN` | ARN del rol que asumirá GitHub Actions vía OIDC |
+Configura el runner con la etiqueta personalizada `vidasalud-ec2` y verifica en **Settings → Actions → Runners** que aparezca **Online**. Instálalo como servicio bajo `ec2-user` o un usuario dedicado sin privilegios de root, y asegúrate de que ese usuario pueda usar Docker. La instancia necesita Docker activo, `curl` y acceso a Internet para descargar las imágenes base del Dockerfile. Java y Maven no son necesarios en EC2; las pruebas se ejecutan en GitHub.
 
-No guardes contraseñas de PostgreSQL/RabbitMQ en GitHub Actions: el workflow reutiliza el entorno configurado en el contenedor de EC2.
+## Flujo
 
-## Requisitos AWS
+- Los pull requests que afectan al BFF ejecutan `Test BFF` en `ubuntu-latest`; no usan el runner de producción.
+- Solo un push a `main` que cambie `ms-vidasalud-bff/` puede iniciar el despliegue.
+- El despliegue espera a que terminen correctamente las pruebas, construye una imagen local etiquetada con el SHA del commit y verifica `/actuator/health`.
+- El script conserva el entorno, puertos, redes y política de reinicio del contenedor actual. Si el contenedor nuevo no queda saludable, restaura el anterior.
+- El contenedor previo se conserva detenido con un nombre `vidasalud-bff-rollback-<sha>` para permitir rollback manual; no se elimina automáticamente.
 
-1. Configura el proveedor OIDC de GitHub (`token.actions.githubusercontent.com`) en IAM.
-2. Crea un rol confiable solo para `repo:Joscelynne/VidaSalud:ref:refs/heads/main` (audience `sts.amazonaws.com`). Así, los PR y otras ramas no pueden asumir el rol de despliegue.
-3. Adjunta al rol una política mínima para obtener credenciales ECR y publicar imágenes en el repositorio `ms-vidasalud-bff` (`ecr:GetAuthorizationToken`, `ecr:BatchCheckLayerAvailability`, `ecr:InitiateLayerUpload`, `ecr:UploadLayerPart`, `ecr:CompleteLayerUpload`, `ecr:PutImage`), más `ssm:SendCommand` limitado al documento `AWS-RunShellScript` y a la instancia objetivo, y `ssm:GetCommandInvocation` para verificar el resultado.
-4. Asegura que la instancia tenga un instance profile con `AmazonSSMManagedInstanceCore` y lectura del repositorio ECR (`ecr:GetAuthorizationToken`, `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer`).
-5. En EC2 deben estar instalados y activos SSM Agent, Docker, AWS CLI y `curl`; el usuario que ejecuta SSM debe poder ejecutar Docker. La instancia necesita salida HTTPS a ECR y Systems Manager.
-6. Verifica que el contenedor actual se llame `vidasalud-bff` y que `/actuator/health` esté accesible en `127.0.0.1:8080`. Si difiere, ajusta `BFF_CONTAINER_NAME` o `BFF_HEALTH_URL` dentro de `scripts/deploy-bff-ssm.sh` antes de habilitar el workflow.
+## Seguridad y disponibilidad
 
-## Comportamiento y seguridad
+El runner tiene acceso a Docker en el host de producción. Protege `main`, revisa los cambios antes de integrarlos y no ejecutes workflows de pull requests no confiables en este runner. Los jobs de PR definidos aquí usan exclusivamente runners hospedados por GitHub.
 
-- Un PR ejecuta pruebas, pero no obtiene credenciales AWS ni despliega.
-- El despliegue solo ocurre al integrar cambios del BFF en `main`.
-- Las imágenes se identifican por digest inmutable; los despliegues no dependen de `latest`.
-- Los despliegues se serializan para evitar dos reemplazos simultáneos.
-- El contenedor anterior queda detenido como `vidasalud-bff-rollback-<sha>` para rollback manual. No se elimina automáticamente.
-- La primera ejecución fallará antes de desplegar si faltan variables/rol IAM; no se debe habilitar hasta completar los requisitos AWS.
+La instancia EC2 y el entorno/laboratorio de AWS Academy deben permanecer encendidos y conectados a GitHub. Si AWS Academy detiene la instancia, el runner queda offline y el job de despliegue esperará hasta agotar el límite de 20 minutos. Al reanudar el laboratorio, el runner volverá a conectarse; el despliegue no ocurre mientras la instancia esté apagada.
 
-## Verificación
+Esta ruta crea la imagen en EC2 y no la publica en ECR. El permiso de solo lectura de ECR de `LabRole` no se usa para el despliegue.
 
-Abre **Actions → BFF CI/CD**. Un PR debe completar `Test BFF`. Tras mergear un cambio del backend a `main`, deben completarse `Test BFF` y `Build and deploy BFF to AWS`; el segundo job muestra el resultado del health check y el digest publicado.
+## Activar sin desplegar accidentalmente
+
+Primero instala y verifica el runner con la etiqueta `vidasalud-ec2`. Después integra este workflow. Su push inicial no dispara el job de despliegue porque el filtro de `main` solo observa cambios del backend y excluye el archivo de protección `.dockerignore`. El despliegue automático comenzará con el siguiente cambio de código del BFF integrado en `main`.
+
+El script `scripts/deploy-bff-ec2-runner.sh` también se puede ejecutar en EC2 con `GITHUB_SHA` definido, pero normalmente lo ejecuta GitHub Actions.
