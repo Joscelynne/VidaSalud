@@ -65,6 +65,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/amqp/**")
                         .hasRole("Admin")
 
+                        // Notificaciones: Admin, Recepcionista, Paciente, Auditor
+                        .requestMatchers("/api/notifications/**")
+                        .hasAnyRole("Admin", "Recepcionista", "Paciente", "Auditor")
+
                         .requestMatchers("/api/me").authenticated()
                         .anyRequest().authenticated())
 
