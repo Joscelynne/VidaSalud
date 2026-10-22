@@ -1,0 +1,158 @@
+name: BFF CI/CD
+
+on:
+  pull_request:
+    paths:
+      - "ms-vidasalud-bff/**"
+      - "scripts/deploy-bff-ssm.sh"
+      - ".github/workflows/bff-ci-cd.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ms-vidasalud-bff/**"
+      - "scripts/deploy-bff-ssm.sh"
+      - ".github/workflows/bff-ci-cd.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vidasalud-bff-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test BFF
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: ms-vidasalud-bff/pom.xml
+
+      - name: Run unit and security tests
+        run: mvn -B -f ms-vidasalud-bff/pom.xml test '-Dtest=!*IntegrationTest'
+
+  deploy:
+    name: Build and deploy BFF to AWS
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ms-vidasalud-bff' }}
+      EC2_INSTANCE_ID: ${{ vars.BFF_EC2_INSTANCE_ID }}
+      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        run: |
+          if [ -z "$AWS_ACCOUNT_ID" ] || [ -z "$EC2_INSTANCE_ID" ] || [ -z "$AWS_DEPLOY_ROLE_ARN" ]; then
+            echo "Configure repository variables AWS_ACCOUNT_ID, BFF_EC2_INSTANCE_ID and AWS_DEPLOY_ROLE_ARN before enabling deployment."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Verify AWS account
+        run: |
+          ACTUAL_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          if [ "$ACTUAL_ACCOUNT" != "$AWS_ACCOUNT_ID" ]; then
+            echo "The assumed role belongs to AWS account $ACTUAL_ACCOUNT, expected $AWS_ACCOUNT_ID."
+            exit 1
+          fi
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push immutable BFF image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ms-vidasalud-bff
+          file: ./ms-vidasalud-bff/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha,scope=bff
+          cache-to: type=gha,mode=max,scope=bff
+
+      - name: Deploy exact image digest through AWS Systems Manager
+        env:
+          IMAGE_URI: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}@${{ steps.build.outputs.digest }}
+          DEPLOYMENT_ID: ${{ github.sha }}
+          DEPLOY_AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          image = os.environ["IMAGE_URI"]
+          deployment_id = os.environ["DEPLOYMENT_ID"]
+          script = Path("scripts/deploy-bff-ssm.sh").read_text()
+          region = os.environ["DEPLOY_AWS_REGION"]
+          command = (
+              f"export IMAGE_URI='{image}' DEPLOYMENT_ID='{deployment_id}' AWS_REGION='{region}'; "
+              "bash -s <<'BFF_DEPLOY_SCRIPT'\n"
+              + script
+              + "\nBFF_DEPLOY_SCRIPT"
+          )
+          Path("/tmp/ssm-parameters.json").write_text(json.dumps({"commands": [command]}))
+          PY
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "VidaSalud BFF deploy ${GITHUB_SHA}" \
+            --parameters file:///tmp/ssm-parameters.json \
+            --query 'Command.CommandId' --output text)
+          echo "SSM command: $COMMAND_ID"
+
+          for attempt in $(seq 1 60); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$EC2_INSTANCE_ID" \
+              --query 'Status' --output text 2>/dev/null || true)
+            case "$STATUS" in
+              Success)
+                aws ssm get-command-invocation \
+                  --command-id "$COMMAND_ID" \
+                  --instance-id "$EC2_INSTANCE_ID" \
+                  --query 'StandardOutputContent' --output text
+                exit 0
+                ;;
+              Failed|Cancelled|TimedOut)
+                aws ssm get-command-invocation \
+                  --command-id "$COMMAND_ID" \
+                  --instance-id "$EC2_INSTANCE_ID" \
+                  --query '{status:Status,stdout:StandardOutputContent,stderr:StandardErrorContent}' \
+                  --output json
+                exit 1
+                ;;
+              *) sleep 10 ;;
+            esac
+          done
+          echo "Timed out waiting for the EC2 deployment command."
+          exit 1
