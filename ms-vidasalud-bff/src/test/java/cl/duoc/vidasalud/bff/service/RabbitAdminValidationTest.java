@@ -297,16 +297,37 @@ class RabbitAdminValidationTest {
             }
         }
 
+        @ParameterizedTest(name = "purgeQueue rechaza cola protegida: [{0}]")
+        @ValueSource(strings = {
+                "citas.agendamiento.queue",
+                "citas.confirmacion.queue",
+                "notificaciones.auditoria.queue",
+                "citas.agendamiento.dlq",
+                "citas.confirmacion.dlq",
+                "notificaciones.auditoria.dlq"
+        })
+        @DisplayName("purgeQueue rechaza purga de colas protegidas de VidaSalud")
+        void purgeQueue_rejectsProtectedQueues(String protectedQueue) {
+            assertThatThrownBy(() -> service.purgeQueue(protectedQueue))
+                    .isInstanceOf(AmqpValidationException.class)
+                    .satisfies(ex -> {
+                        AmqpValidationException amqpEx = (AmqpValidationException) ex;
+                        assertThat(amqpEx.getHttpStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+                        assertThat(amqpEx.getErrorCode()).isEqualTo("AMQP_PROTECTED_RESOURCE");
+                        assertThat(amqpEx.getMessage()).contains("topología esencial");
+                        assertThat(amqpEx.getMessage()).contains(protectedQueue);
+                    });
+        }
+
         @Test
-        @DisplayName("purgeQueue SÍ permite purgar colas protegidas (operación de mantenimiento)")
-        void purgeQueue_allowsProtectedQueues() {
-            String protectedQueue = "citas.agendamiento.queue";
-            when(amqpAdmin.getQueueInfo(protectedQueue)).thenReturn(
-                    new QueueInformation(protectedQueue, 10, 2)
+        @DisplayName("purgeQueue sí permite purgar colas no protegidas")
+        void purgeQueue_allowsNonProtectedQueues() {
+            String customQueue = "mi.cola.personalizada";
+            when(amqpAdmin.getQueueInfo(customQueue)).thenReturn(
+                    new QueueInformation(customQueue, 10, 2)
             );
 
-            // Purgar es permitido porque no destruye la cola, solo limpia mensajes
-            int purged = service.purgeQueue(protectedQueue);
+            int purged = service.purgeQueue(customQueue);
             assertThat(purged).isEqualTo(10);
         }
     }

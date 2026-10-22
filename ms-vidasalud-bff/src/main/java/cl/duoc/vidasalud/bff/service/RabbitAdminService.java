@@ -177,16 +177,19 @@ public class RabbitAdminService {
 
     /**
      * Purga todos los mensajes encolados de una cola.
-     * Permite purgar colas protegidas (operación de mantenimiento, no destructiva).
+     * Rechaza purga de colas protegidas de la topología esencial.
      *
      * @param queueName Nombre de la cola a purgar
      * @return Cantidad de mensajes purgados
-     * @throws AmqpValidationException si el nombre es inválido
+     * @throws AmqpValidationException si la cola está protegida o el nombre es inválido
      * @throws QueueNotFoundException si la cola no existe
      */
     public int purgeQueue(String queueName) {
+        validateResourceName(queueName, "cola");
+
         String trimmedName = queueName.trim();
-        validateResourceName(trimmedName, "cola");
+        validateNotReservedPrefix(trimmedName);
+        validateNotProtectedQueue(trimmedName, "purgar");
 
         QueueInformation queueInfo = amqpAdmin.getQueueInfo(trimmedName);
         if (queueInfo == null) {

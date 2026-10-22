@@ -8,6 +8,7 @@ import {
   BarChart3,
   History,
   Activity,
+  Network,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -43,6 +44,12 @@ export const Sidebar: React.FC = () => {
       label: 'Auditoría de Sistema',
       icon: History,
       show: hasRole(['Admin', 'Auditor']),
+    },
+    {
+      to: '/admin/rabbitmq',
+      label: 'Administración RabbitMQ',
+      icon: Network,
+      show: isAdmin,
     },
   ];
 

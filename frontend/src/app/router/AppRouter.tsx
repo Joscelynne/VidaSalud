@@ -10,6 +10,7 @@ import { AppointmentsPage } from '../../pages/AppointmentsPage';
 import { CatalogPage } from '../../pages/CatalogPage';
 import { ReportsPage } from '../../pages/ReportsPage';
 import { AuditPage } from '../../pages/AuditPage';
+import { RabbitMQAdminPage } from '../../pages/RabbitMQAdminPage';
 import { UnauthorizedPage } from '../../pages/UnauthorizedPage';
 
 export const AppRouter: React.FC = () => {
@@ -64,6 +65,16 @@ export const AppRouter: React.FC = () => {
           element={
             <RoleGuard allowedRoles={['Admin', 'Auditor']}>
               <AuditPage />
+            </RoleGuard>
+          }
+        />
+
+        {/* Administración RabbitMQ: Admin */}
+        <Route
+          path="/admin/rabbitmq"
+          element={
+            <RoleGuard allowedRoles={['Admin']}>
+              <RabbitMQAdminPage />
             </RoleGuard>
           }
         />
