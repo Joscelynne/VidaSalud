@@ -1,6 +1,7 @@
 package cl.duoc.vidasalud.bff.service;
 
 import cl.duoc.vidasalud.bff.dto.AppointmentDto;
+import cl.duoc.vidasalud.bff.dto.CreateAppointmentRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -10,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +40,51 @@ public class AppointmentService {
                         rs.getString("specialty"), rs.getString("date_time"), rs.getString("status"),
                         rs.getString("room_number"), rs.getString("notes")), id)
                 .stream().findFirst();
+    }
+
+    @Transactional
+    public AppointmentDto create(CreateAppointmentRequest request) {
+        String id = (request.getId() != null && !request.getId().isBlank())
+                ? request.getId().trim()
+                : "APT-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+
+        if (findById(id).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una atención médica con ID " + id);
+        }
+
+        String status = (request.getStatus() != null && !request.getStatus().isBlank())
+                ? request.getStatus().trim()
+                : "PENDING";
+        String roomNumber = (request.getRoomNumber() != null && !request.getRoomNumber().isBlank())
+                ? request.getRoomNumber().trim()
+                : "Box Por Asignar";
+        String notes = request.getNotes() != null ? request.getNotes().trim() : "";
+
+        jdbcTemplate.update("""
+                INSERT INTO vidasalud_appointments
+                    (id, patient_name, doctor_name, specialty, date_time, status, room_number, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                id, request.getPatientName().trim(), request.getDoctorName().trim(),
+                request.getSpecialty().trim(), request.getDateTime().trim(), status,
+                roomNumber, notes);
+
+        return new AppointmentDto(id, request.getPatientName().trim(), request.getDoctorName().trim(),
+                request.getSpecialty().trim(), request.getDateTime().trim(), status, roomNumber, notes);
+    }
+
+    @Transactional
+    public void delete(String id) {
+        jdbcTemplate.update("DELETE FROM vidasalud_appointments WHERE id = ?", id);
+    }
+
+    @Transactional
+    public void revertToPending(String id) {
+        jdbcTemplate.update("""
+                UPDATE vidasalud_appointments
+                SET status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """, id);
     }
 
     @Transactional

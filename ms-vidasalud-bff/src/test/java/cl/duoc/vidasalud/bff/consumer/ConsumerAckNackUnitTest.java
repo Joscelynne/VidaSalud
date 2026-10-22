@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import cl.duoc.vidasalud.bff.service.NotificationService;
 import java.io.IOException;
 
 import static org.mockito.Mockito.*;
@@ -23,9 +24,13 @@ class ConsumerAckNackUnitTest {
     @Mock
     private Channel channel;
 
+    @Mock
+    private NotificationService notificationService;
+
     private AppointmentCreationConsumer creationConsumer;
     private AppointmentConfirmationConsumer confirmationConsumer;
     private NotificationAuditConsumer auditConsumer;
+    private NotificationAuditConsumer auditConsumerWithService;
 
     @BeforeEach
     void setUp() {
@@ -38,6 +43,7 @@ class ConsumerAckNackUnitTest {
         creationConsumer = new AppointmentCreationConsumer(properties);
         confirmationConsumer = new AppointmentConfirmationConsumer(properties);
         auditConsumer = new NotificationAuditConsumer(properties);
+        auditConsumerWithService = new NotificationAuditConsumer(properties, notificationService);
     }
 
     // =========================================================================
@@ -159,5 +165,24 @@ class ConsumerAckNackUnitTest {
 
         verify(channel, times(1)).basicNack(deliveryTag, false, false);
         verify(channel, never()).basicAck(anyLong(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("Verifica que un evento de auditoría válido con NotificationService persista y ejecute basicAck")
+    void shouldPersistAndAckValidNotificationAuditEvent() throws IOException {
+        long deliveryTag = 303L;
+        NotificationAuditEvent event = NotificationAuditEvent.builder()
+                .eventId("evt-7")
+                .action("APPOINTMENT_SCHEDULED")
+                .resource("AppointmentController")
+                .user("recepcionista@vidasalud.cl")
+                .status("SUCCESS")
+                .build();
+
+        auditConsumerWithService.receiveNotificationAudit(event, channel, deliveryTag);
+
+        verify(notificationService, times(1)).saveFromEvent(event);
+        verify(channel, times(1)).basicAck(deliveryTag, false);
+        verify(channel, never()).basicNack(anyLong(), anyBoolean(), anyBoolean());
     }
 }

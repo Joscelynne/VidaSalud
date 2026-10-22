@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
+import cl.duoc.vidasalud.bff.service.NotificationService;
+
 /**
  * Consumidor para eventos de auditoría y notificaciones en 'notificaciones.auditoria.queue'.
  * Implementa confirmación manual ACK/NACK:
@@ -20,10 +22,20 @@ import java.io.IOException;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class NotificationAuditConsumer {
 
     private final RabbitMQProperties rabbitMQ;
+    private final NotificationService notificationService;
+
+    public NotificationAuditConsumer(RabbitMQProperties rabbitMQ) {
+        this(rabbitMQ, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public NotificationAuditConsumer(RabbitMQProperties rabbitMQ, NotificationService notificationService) {
+        this.rabbitMQ = rabbitMQ;
+        this.notificationService = notificationService;
+    }
 
     @RabbitListener(
             queues = "${vidasalud.rabbitmq.queues.notification-audit}",
@@ -75,5 +87,8 @@ public class NotificationAuditConsumer {
     private void processEvent(NotificationAuditEvent event) {
         log.info("Registrando evento de auditoría. Acción [{}], recurso [{}], usuario [{}], traza [{}]",
                 event.getAction(), event.getResource(), event.getUser(), event.getTraceId());
+        if (notificationService != null) {
+            notificationService.saveFromEvent(event);
+        }
     }
 }

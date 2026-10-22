@@ -45,4 +45,33 @@ class AppointmentServicePersistenceTest {
         assertThat(repeated.newlyConfirmed()).isFalse();
         assertThat(repeated.appointment().getStatus()).isEqualTo("CONFIRMED");
     }
+
+    @Test
+    void createAppointmentSavesRecordCorrectly() {
+        cl.duoc.vidasalud.bff.dto.CreateAppointmentRequest request = new cl.duoc.vidasalud.bff.dto.CreateAppointmentRequest();
+        request.setPatientName("Carlos Mora");
+        request.setDoctorName("Dra. Beatriz Morales");
+        request.setSpecialty("Cardiología");
+        request.setDateTime("2026-11-15T10:00:00");
+        request.setRoomNumber("Box 204");
+        request.setNotes("Control de rutina");
+
+        cl.duoc.vidasalud.bff.dto.AppointmentDto created = appointmentService.create(request);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getId()).isNotBlank();
+        assertThat(created.getStatus()).isEqualTo("PENDING");
+        assertThat(created.getPatientName()).isEqualTo("Carlos Mora");
+
+        assertThat(appointmentService.findById(created.getId())).isPresent();
+    }
+
+    @Test
+    void revertToPendingRestoresStatus() {
+        appointmentService.confirm("APT-101");
+        assertThat(appointmentService.findById("APT-101").get().getStatus()).isEqualTo("CONFIRMED");
+
+        appointmentService.revertToPending("APT-101");
+        assertThat(appointmentService.findById("APT-101").get().getStatus()).isEqualTo("PENDING");
+    }
 }
