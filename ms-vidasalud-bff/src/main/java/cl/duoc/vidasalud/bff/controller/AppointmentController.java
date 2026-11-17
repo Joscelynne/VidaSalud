@@ -4,9 +4,11 @@ import cl.duoc.vidasalud.bff.dto.AppointmentDto;
 import cl.duoc.vidasalud.bff.dto.CreateAppointmentRequest;
 import cl.duoc.vidasalud.bff.event.AppointmentConfirmedEvent;
 import cl.duoc.vidasalud.bff.event.AppointmentCreatedEvent;
+import cl.duoc.vidasalud.bff.event.AtencionMetricaEvent;
 import cl.duoc.vidasalud.bff.event.NotificationAuditEvent;
 import cl.duoc.vidasalud.bff.producer.AppointmentEventProducer;
 import cl.duoc.vidasalud.bff.producer.AuditEventProducer;
+import cl.duoc.vidasalud.bff.producer.AtencionMetricaProducer;
 import cl.duoc.vidasalud.bff.service.AppointmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,7 @@ public class AppointmentController {
         private final AppointmentEventProducer appointmentEventProducer;
         private final AuditEventProducer auditEventProducer;
         private final AppointmentService appointmentService;
+        private final AtencionMetricaProducer atencionMetricaProducer;
 
         @GetMapping
         @PreAuthorize("hasAnyRole('Admin', 'Recepcionista', 'Paciente')")
@@ -91,6 +94,21 @@ public class AppointmentController {
                         log.warn("No se pudo emitir evento de notificación para cita {}: {}", dto.getId(), ex.getMessage());
                 }
 
+                // 3. Publicar evento de streaming analítico en Apache Kafka (Tópico -> vidasalud.atenciones.stream)
+                try {
+                        atencionMetricaProducer.publishAtencionMetrica(
+                                        AtencionMetricaEvent.builder()
+                                                        .eventId("evt-stream-" + UUID.randomUUID().toString().substring(0, 8))
+                                                        .specialty(dto.getSpecialty())
+                                                        .status(dto.getStatus())
+                                                                                                                .timestamp(Instant.now())
+                                                        .traceId(UUID.randomUUID().toString().substring(0, 8))
+                                                        .build()
+                        );
+                } catch (Exception ex) {
+                        log.warn("[KAFKA] No se pudo emitir evento de analítica Kafka para cita {}: {}", dto.getId(), ex.getMessage());
+                }
+
                 return ResponseEntity.status(HttpStatus.CREATED).body(dto);
         }
 
@@ -135,8 +153,22 @@ public class AppointmentController {
                         } catch (Exception ex) {
                                 log.warn("No se pudo emitir notificación de confirmación para cita {}: {}", dto.getId(), ex.getMessage());
                         }
+
+                        // Publicar evento de streaming analítico en Apache Kafka (Tópico -> vidasalud.atenciones.stream)
+                        try {
+                                atencionMetricaProducer.publishAtencionMetrica(
+                                                AtencionMetricaEvent.builder()
+                                                                .eventId("evt-stream-" + UUID.randomUUID().toString().substring(0, 8))
+                                                                .specialty(dto.getSpecialty())
+                                                                .status("CONFIRMED")
+                                                                                                                                .timestamp(Instant.now())
+                                                                .traceId(UUID.randomUUID().toString().substring(0, 8))
+                                                                .build()
+                                );
+                        } catch (Exception ex) {
+                                log.warn("[KAFKA] No se pudo emitir evento de confirmación Kafka para cita {}: {}", dto.getId(), ex.getMessage());
+                        }
                 }
                 return ResponseEntity.ok(dto);
         }
 }
-

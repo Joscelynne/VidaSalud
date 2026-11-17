@@ -11,6 +11,7 @@ import { CatalogPage } from '../../pages/CatalogPage';
 import { ReportsPage } from '../../pages/ReportsPage';
 import { AuditPage } from '../../pages/AuditPage';
 import { RabbitMQAdminPage } from '../../pages/RabbitMQAdminPage';
+import { KafkaAdminPage } from '../../pages/KafkaAdminPage';
 import { UnauthorizedPage } from '../../pages/UnauthorizedPage';
 
 export const AppRouter: React.FC = () => {
@@ -75,6 +76,16 @@ export const AppRouter: React.FC = () => {
           element={
             <RoleGuard allowedRoles={['Admin']}>
               <RabbitMQAdminPage />
+            </RoleGuard>
+          }
+        />
+
+        {/* Streaming & Administración Kafka (EP5 / EP6): Admin */}
+        <Route
+          path="/admin/kafka"
+          element={
+            <RoleGuard allowedRoles={['Admin']}>
+              <KafkaAdminPage />
             </RoleGuard>
           }
         />

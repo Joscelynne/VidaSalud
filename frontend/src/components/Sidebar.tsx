@@ -9,6 +9,7 @@ import {
   History,
   Activity,
   Network,
+  Radio,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -49,6 +50,12 @@ export const Sidebar: React.FC = () => {
       to: '/admin/rabbitmq',
       label: 'Administración RabbitMQ',
       icon: Network,
+      show: isAdmin,
+    },
+    {
+      to: '/admin/kafka',
+      label: 'Streaming Kafka',
+      icon: Radio,
       show: isAdmin,
     },
   ];

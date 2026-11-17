@@ -55,6 +55,22 @@ spring:
         multiplier: 2.0
         max-attempts: 3
 
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+    producer:
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "cl.duoc.vidasalud.bff.event"
+    listener:
+      missing-topics-fatal: false
+
   security:
     oauth2:
       resourceserver:
@@ -105,3 +121,18 @@ vidasalud:
       appointment-creation-dlq: citas.agendamiento.dlq.rk
       appointment-confirmation-dlq: citas.confirmacion.dlq.rk
       notification-audit-dlq: notificaciones.auditoria.dlq.rk
+
+  kafka:
+    enabled: ${VIDASALUD_KAFKA_ENABLED:true}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+    topics:
+      atenciones-stream: vidasalud.atenciones.stream
+      telemetria-stream: vidasalud.telemetria.stream
+    partitions: 3
+    replicas: 3
+    retention-atenciones-ms: 604800000   # 7 días
+    retention-telemetria-ms: 259200000   # 3 días
+    cleanup-policy: delete
+    consumer-groups:
+      analitica-group: vidasalud-analitica-group
+      alertas-group: vidasalud-alertas-group

@@ -65,6 +65,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/amqp/**")
                         .hasRole("Admin")
 
+                        // Administración Kafka (EP5 / EP6): Admin exclusivo
+                        .requestMatchers("/api/admin/kafka/**")
+                        .hasRole("Admin")
+
                         // Notificaciones: Admin, Recepcionista, Paciente, Auditor
                         .requestMatchers("/api/notifications/**")
                         .hasAnyRole("Admin", "Recepcionista", "Paciente", "Auditor")

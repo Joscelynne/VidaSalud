@@ -168,6 +168,19 @@ Consulta la documentación técnica detallada en [`RABBITMQ_GUIDE.md`](RABBITMQ_
 
 ---
 
+## 🌀 Integración Apache Kafka: Streaming y Analítica (EP5 / EP6)
+
+Consulta la documentación técnica integral y guión de defensa en [`KAFKA_GUIDE.md`](KAFKA_GUIDE.md):
+- **Arquitectura Distribuida**: Ensamble ZooKeeper de 3 nodos (quórum $2f+1$) y Clúster Kafka de 3 brokers (`kafka1`, `kafka2`, `kafka3`) con factor de réplica 3 y particionado distribuido en [`docker-compose.kafka.yml`](docker-compose.kafka.yml).
+- **Tópicos y DTOs Sin Datos Sensibles (No PII)**:
+  - `vidasalud.atenciones.stream`: 3 particiones, factor 3, retención 7 días (`delete`), eventos `AtencionMetricaEvent` pseudonimizados.
+  - `vidasalud.telemetria.stream`: 3 particiones, factor 3, retención 3 días (`delete`), eventos `TelemetriaClinicaEvent` de observabilidad.
+- **Consumer Groups y Resiliencia**: Grupos `vidasalud-analitica-group` y `vidasalud-alertas-group` con `DefaultErrorHandler` y reintentos automáticos.
+- **Administración y Kafka UI**: Endpoints en `/api/admin/kafka/**` protegidos con rol `Admin`, panel web Kafka UI en `http://localhost:8090` y vista en frontend React (`/admin/kafka`).
+- **Script CLI**: Operación nativa interactiva en [`scripts/kafka-admin-cli.sh`](scripts/kafka-admin-cli.sh).
+
+---
+
 ## 🚀 Pipeline CI/CD y Despliegue en AWS (`.github/workflows/bff-ci-cd.yml`)
 
 1. **Pruebas en GitHub-hosted Runner (`ubuntu-latest`)**:
