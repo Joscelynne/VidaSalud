@@ -1,17 +1,14 @@
-# syntax=docker/dockerfile:1
 FROM --platform=$BUILDPLATFORM maven:3.9.6-eclipse-temurin-21-alpine AS build
 
 WORKDIR /app
 
-# Copiar configuración Maven y descargar dependencias (con caché de BuildKit para ahorrar espacio)
+# Copiar configuración Maven y descargar dependencias
 COPY pom.xml .
-RUN --mount=type=cache,target=/root/.m2,id=maven-cache \
-    mvn dependency:go-offline -B
+RUN mvn dependency:go-offline -B
 
 # Copiar código fuente y empaquetar ejecutable JAR
 COPY src ./src
-RUN --mount=type=cache,target=/root/.m2,id=maven-cache \
-    mvn clean package -DskipTests
+RUN mvn clean package -DskipTests
 
 # Etapa 2: Imagen de ejecución liviana con JRE 21
 FROM eclipse-temurin:21-jre-alpine
