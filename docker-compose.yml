@@ -48,7 +48,7 @@ services:
       - SPRING_RABBITMQ_VIRTUAL_HOST=/
 
       # Conexión opcional a clúster Kafka (EP5 / EP6)
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${SPRING_KAFKA_BOOTSTRAP_SERVERS:-kafka1:9092,kafka2:9093,kafka3:9094}
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${SPRING_KAFKA_BOOTSTRAP_SERVERS:-172.31.67.180:9092,172.31.67.180:9093,172.31.67.180:9094}
 
     networks:
       - vidasalud-net
