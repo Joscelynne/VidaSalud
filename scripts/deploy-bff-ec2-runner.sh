@@ -39,6 +39,11 @@ docker build --pull --platform linux/amd64 -t "$IMAGE_TAG" -f ms-vidasalud-bff/D
 # Preserve the current runtime configuration in private temporary files.
 docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$CONTAINER_NAME" > "$ENV_FILE"
 chmod 600 "$ENV_FILE"
+
+# Ensure Kafka bootstrap servers are configured (for EP5/EP6 streaming)
+if ! grep -q "^SPRING_KAFKA_BOOTSTRAP_SERVERS=" "$ENV_FILE"; then
+  echo "SPRING_KAFKA_BOOTSTRAP_SERVERS=172.31.67.180:9092,172.31.67.180:9093,172.31.67.180:9094" >> "$ENV_FILE"
+fi
 docker inspect --format '{{range $port, $bindings := .HostConfig.PortBindings}}{{range $bindings}}{{printf "%s|%s|%s\n" .HostIp .HostPort $port}}{{end}}{{end}}' "$CONTAINER_NAME" > "$PORTS_FILE"
 docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$CONTAINER_NAME" > "$NETWORKS_FILE"
 NETWORK_MODE="$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$CONTAINER_NAME")"
