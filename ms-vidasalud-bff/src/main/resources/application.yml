@@ -66,8 +66,6 @@ spring:
     consumer:
       auto-offset-reset: earliest
       enable-auto-commit: false
-      properties:
-        spring.json.trusted.packages: "cl.duoc.vidasalud.bff.event"
     listener:
       missing-topics-fatal: false
       auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}

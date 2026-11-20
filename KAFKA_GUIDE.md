@@ -161,31 +161,59 @@ Endpoints protegidos exclusivamente para usuarios con rol `Admin`:
 
 ---
 
-## 7. Instrucciones de Ejecución y Arranque Local
+## 7. Instrucciones de Ejecución y Conectividad
 
 ### 7.1 Iniciar el Clúster Kafka (ZooKeeper 3 nodos + Kafka 3 brokers + Kafka UI)
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.kafka.yml up -d
+docker compose -f docker-compose.kafka.yml up -d
 ```
 
-Verificar que los servicios de aplicación e infraestructura estén activos:
+> **Variable de entorno `KAFKA_ADVERTISED_HOST`:**
+> Los brokers configuran dos listeners:
+> - `INTERNAL` (puertos 29092, 29093, 29094): para comunicación interna entre brokers y con `kafka-ui` dentro de la red Docker (`vidasalud-net`).
+> - `EXTERNAL` (puertos 9092, 9093, 9094): expuestos hacia el host para clientes externos.
+>
+> Por defecto, el host anunciado en el listener externo es `172.31.67.180` (IP privada configurada para el host Kafka en AWS EC2).
+> Para levantar y probar el clúster localmente en tu máquina (Mac/Linux/Windows), define la variable `KAFKA_ADVERTISED_HOST=localhost`:
+> ```bash
+> KAFKA_ADVERTISED_HOST=localhost docker compose -f docker-compose.kafka.yml up -d
+> ```
+
+Verificar que los servicios de infraestructura estén activos:
 ```bash
-docker ps --filter "name=vidasalud"
+docker compose -f docker-compose.kafka.yml ps
 ```
 
 Acceder a las interfaces:
-- **Kafka UI:** `http://localhost:8090`
+- **Kafka UI:** `http://localhost:8090` (conectado a los listeners internos `kafka1:29092,kafka2:29093,kafka3:29094`)
 - **BFF Spring Boot:** `http://localhost:8080`
 - **Frontend React:** `http://localhost:3000` (Panel: `/admin/kafka`)
 
-### 7.2 Iniciar el BFF con soporte Kafka
+### 7.2 Conexión del BFF según el Entorno de Ejecución
 
-Si se ejecuta el BFF localmente fuera de Docker:
-```bash
-cd ms-vidasalud-bff
-SPRING_KAFKA_BOOTSTRAP_SERVERS=localhost:19092,localhost:19093,localhost:19094 mvn spring-boot:run
-```
+El BFF se comunica con Kafka a través de `SPRING_KAFKA_BOOTSTRAP_SERVERS`. La dirección a utilizar depende de dónde se ejecute el BFF:
+
+1. **BFF Local fuera de Docker (ejecutado con Maven/IDE en tu máquina):**
+   - Requiere haber levantado Kafka con `KAFKA_ADVERTISED_HOST=localhost`.
+   - Conexión a través de los puertos externos mapeados al host (9092, 9093, 9094):
+   ```bash
+   cd ms-vidasalud-bff
+   SPRING_KAFKA_BOOTSTRAP_SERVERS=localhost:9092,localhost:9093,localhost:9094 mvn spring-boot:run
+   ```
+
+2. **BFF dentro de Docker en la misma red (`vidasalud-net`):**
+   - Si el BFF se ejecuta en un contenedor Docker en la misma máquina o red que Kafka:
+   ```
+   SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka1:29092,kafka2:29093,kafka3:29094
+   ```
+
+3. **BFF en otra máquina / instancia EC2 (ej. `172.31.89.28` conectando a `172.31.67.180`):**
+   - Utiliza la IP privada del host Kafka y los puertos externos (9092, 9093, 9094):
+   ```
+   SPRING_KAFKA_BOOTSTRAP_SERVERS=172.31.67.180:9092,172.31.67.180:9093,172.31.67.180:9094
+   ```
+   - *Consideración de red:* Esta configuración asume que ambas instancias están en la misma VPC (o interconectadas) y que el Security Group de AWS en la instancia de Kafka permite tráfico entrante TCP en los puertos 9092, 9093 y 9094 desde la IP del BFF. *(Nota: La operatividad efectiva de la infraestructura en AWS no se da por asumida y debe verificarse directamente en la consola de AWS o mediante comprobación de conectividad antes de la presentación)*.
 
 ---
 

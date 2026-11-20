@@ -5,6 +5,12 @@
 # - Ensamble ZooKeeper de 3 nodos (Quórum 2f+1: soporta caída de 1 nodo ZK)
 # - Clúster Apache Kafka de 3 brokers (Soporta factor de réplica 3 y particiones 3)
 # - Consola Web Kafka UI (Monitoreo de brokers, tópicos, mensajes, consumer groups, lag)
+#
+# Configuración de Listeners:
+# - INTERNAL (29092, 29093, 29094): tráfico entre brokers y servicios en red Docker (vidasalud-net).
+# - EXTERNAL (9092, 9093, 9094): tráfico expuesto a clientes externos (BFF, herramientas).
+# - Variable KAFKA_ADVERTISED_HOST: host/IP anunciado para el listener EXTERNAL.
+#   Predeterminado: 172.31.67.180 (AWS EC2). Para pruebas locales usar: KAFKA_ADVERTISED_HOST=localhost
 # ==============================================================================
 
 services:
@@ -98,8 +104,8 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:9092,EXTERNAL://172.31.67.180:9092
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:29092,EXTERNAL://${KAFKA_ADVERTISED_HOST:-172.31.67.180}:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_DEFAULT_REPLICATION_FACTOR: 3
       KAFKA_NUM_PARTITIONS: 3
@@ -132,8 +138,8 @@ services:
       KAFKA_BROKER_ID: 2
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:9093,EXTERNAL://172.31.67.180:9093
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29093,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:29093,EXTERNAL://${KAFKA_ADVERTISED_HOST:-172.31.67.180}:9093
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_DEFAULT_REPLICATION_FACTOR: 3
       KAFKA_NUM_PARTITIONS: 3
@@ -166,8 +172,8 @@ services:
       KAFKA_BROKER_ID: 3
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9094,EXTERNAL://0.0.0.0:9094
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:9094,EXTERNAL://172.31.67.180:9094
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29094,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:29094,EXTERNAL://${KAFKA_ADVERTISED_HOST:-172.31.67.180}:9094
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_DEFAULT_REPLICATION_FACTOR: 3
       KAFKA_NUM_PARTITIONS: 3
@@ -197,7 +203,7 @@ services:
       - "8090:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: "VidaSalud-Cluster"
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka1:9092,kafka2:9093,kafka3:9094"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka1:29092,kafka2:29093,kafka3:29094"
       KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
     networks:
       - vidasalud-net
