@@ -42,7 +42,6 @@ public class KafkaConsumerConfig {
         // Lectura desde el inicio para nuevos grupos y commit controlado
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        props.put(JsonDeserializer.TRUSTED_PACKAGES, "cl.duoc.vidasalud.bff.event");
 
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
