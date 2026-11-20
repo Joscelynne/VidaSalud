@@ -25,8 +25,7 @@ if ! docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
   exit 1
 fi
 if [[ "$(docker inspect --format '{{.State.Running}}' "$CONTAINER_NAME")" != "true" ]]; then
-  echo "Container '$CONTAINER_NAME' is not running; refusing deployment." >&2
-  exit 1
+  echo "Container '$CONTAINER_NAME' is stopped; continuing with its preserved configuration."
 fi
 if docker inspect "$BACKUP_NAME" >/dev/null 2>&1; then
   echo "Rollback container '$BACKUP_NAME' already exists; refusing to overwrite it." >&2
@@ -79,9 +78,14 @@ rollback() {
 trap rollback ERR
 
 DEPLOYMENT_STARTED=true
-docker stop "$CONTAINER_NAME"
+if [[ "$(docker inspect --format '{{.State.Running}}' "$CONTAINER_NAME")" == "true" ]]; then
+  docker stop "$CONTAINER_NAME"
+fi
 docker rename "$CONTAINER_NAME" "$BACKUP_NAME"
 RUN_ARGS=(--detach --name "$CONTAINER_NAME" --restart "$RESTART_POLICY" --network "$PRIMARY_NETWORK" --env-file "$ENV_FILE")
+if [[ "$CONTAINER_NAME" == "vidasalud-bff" && "$PRIMARY_NETWORK" == "vidasalud_default" ]]; then
+  RUN_ARGS+=(--network-alias bff)
+fi
 while IFS='|' read -r host_ip host_port container_port; do
   [[ -n "$container_port" ]] || continue
   container_port="${container_port%/*}"
