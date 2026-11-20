@@ -70,6 +70,7 @@ spring:
         spring.json.trusted.packages: "cl.duoc.vidasalud.bff.event"
     listener:
       missing-topics-fatal: false
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
 
   security:
     oauth2:
