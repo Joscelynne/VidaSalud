@@ -67,6 +67,15 @@ public class KafkaAdminController {
         return ResponseEntity.ok(kafkaAdminService.listConsumerGroups());
     }
 
+    @PostMapping("/consumer-groups/{groupId}/offsets/reset")
+    public ResponseEntity<KafkaOperationResponse> resetConsumerGroupOffsets(
+            @PathVariable String groupId,
+            @Valid @RequestBody ResetConsumerGroupOffsetsRequest request) {
+        log.warn("[KAFKA-ADMIN-CTRL] Reinicio de offsets solicitado para grupo [{}], estrategia [{}]",
+                groupId, request.getStrategy());
+        return ResponseEntity.ok(kafkaAdminService.resetConsumerGroupOffsets(groupId, request));
+    }
+
     @PostMapping("/publish/test")
     public ResponseEntity<KafkaOperationResponse> publishTestEvent(
             @Valid @RequestBody PublishTestKafkaEventRequest request) {

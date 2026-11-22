@@ -42,9 +42,10 @@ function show_menu() {
     echo -e "7) Describir Consumer Group (Offsets y Lag)"
     echo -e "8) Monitorear mensajes en tiempo real (Console Consumer)"
     echo -e "9) Publicar evento de prueba interactivo (Console Producer)"
+    echo -e "10) Reiniciar offsets de un grupo detenido (inicio/final)"
     echo -e "0) Salir"
     echo -e "${CYAN}------------------------------------------------------------------${NC}"
-    echo -n "Selecciona una opción [0-9]: "
+    echo -n "Selecciona una opción [0-10]: "
 }
 
 function list_topics() {
@@ -140,6 +141,38 @@ function describe_group() {
         --describe --group "${GROUP_NAME}"
 }
 
+function reset_group_offsets() {
+    check_container
+    echo -n "Consumer Group detenido: "
+    read -r GROUP_NAME
+    if [ -z "$GROUP_NAME" ]; then
+        echo -e "${RED}[ERROR] El nombre del grupo es requerido.${NC}"
+        return
+    fi
+
+    echo -n "Destino [earliest/latest]: "
+    read -r RESET_TARGET
+    case "$RESET_TARGET" in
+        earliest|latest) ;;
+        *) echo -e "${RED}[ERROR] El destino debe ser earliest o latest.${NC}"; return ;;
+    esac
+
+    echo -e "\n${YELLOW}Vista previa del cambio (no modifica offsets):${NC}"
+    docker exec -t "${CONTAINER_NAME}" kafka-consumer-groups --bootstrap-server "${BOOTSTRAP_SERVERS}" \
+        --group "${GROUP_NAME}" --reset-offsets "--to-${RESET_TARGET}" --dry-run
+    echo -e "${RED}Esta acción puede reprocesar mensajes (earliest) u omitir pendientes (latest).${NC}"
+    echo -n "Para confirmar, escribe exactamente RESET ${GROUP_NAME}: "
+    read -r CONFIRMATION
+    if [ "$CONFIRMATION" != "RESET ${GROUP_NAME}" ]; then
+        echo -e "${YELLOW}Cancelado; no se modificaron offsets.${NC}"
+        return
+    fi
+
+    docker exec -t "${CONTAINER_NAME}" kafka-consumer-groups --bootstrap-server "${BOOTSTRAP_SERVERS}" \
+        --group "${GROUP_NAME}" --reset-offsets "--to-${RESET_TARGET}" --execute
+    echo -e "${GREEN}[OK] Offsets reiniciados. Kafka rechazará la operación si el grupo sigue activo.${NC}"
+}
+
 function consume_stream() {
     check_container
     echo -n "Tópico a monitorear [default: vidasalud.atenciones.stream]: "
@@ -177,6 +210,7 @@ if [ $# -eq 0 ]; then
             7) describe_group ;;
             8) consume_stream ;;
             9) produce_stream ;;
+            10) reset_group_offsets ;;
             0) echo -e "\nSaliendo."; exit 0 ;;
             *) echo -e "${RED}Opción no válida.${NC}" ;;
         esac

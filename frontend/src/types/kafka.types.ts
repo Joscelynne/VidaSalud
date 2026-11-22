@@ -75,3 +75,8 @@ export interface KafkaOperationResponse {
   timestamp: string;
   details?: Record<string, unknown>;
 }
+
+export interface ResetConsumerGroupOffsetsRequest {
+  strategy: 'EARLIEST' | 'LATEST';
+  confirmed: boolean;
+}

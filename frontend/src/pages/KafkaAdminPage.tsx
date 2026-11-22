@@ -38,6 +38,7 @@ export const KafkaAdminPage: React.FC = () => {
   const [simEventType, setSimEventType] = useState<'ATENCIONES' | 'TELEMETRIA'>('ATENCIONES');
   const [simSpecialty, setSimSpecialty] = useState('Cardiología');
   const [simLatency, setSimLatency] = useState(150);
+  const [offsetResetStrategy, setOffsetResetStrategy] = useState<'EARLIEST' | 'LATEST'>('EARLIEST');
 
   const loadData = useCallback(async () => {
     try {
@@ -101,6 +102,28 @@ export const KafkaAdminPage: React.FC = () => {
       fetchData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al eliminar tópico';
+      setError(message);
+    }
+  };
+
+  const handleResetGroupOffsets = async (groupId: string) => {
+    const target = offsetResetStrategy === 'EARLIEST' ? 'el inicio (se reprocesarán mensajes)' : 'el final (se saltarán mensajes pendientes)';
+    const confirmed = window.confirm(
+      `Vas a mover los offsets de '${groupId}' a ${target}. El grupo debe estar detenido. ¿Confirmas esta acción?`
+    );
+    if (!confirmed) return;
+
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const response = await kafkaService.resetConsumerGroupOffsets(groupId, {
+        strategy: offsetResetStrategy,
+        confirmed: true,
+      });
+      setSuccessMsg(response.message);
+      await fetchData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'No se pudieron reiniciar los offsets';
       setError(message);
     }
   };
@@ -427,7 +450,19 @@ export const KafkaAdminPage: React.FC = () => {
             <Users className="w-5 h-5 text-indigo-400" />
             Consumer Groups, Offsets y Lag (EP6)
           </h2>
-          <span className="text-xs text-slate-400">{consumerGroups.length} grupos activos</span>
+          <div className="flex items-center gap-2">
+            <label htmlFor="offset-reset-strategy" className="text-xs text-slate-400">Reiniciar a</label>
+            <select
+              id="offset-reset-strategy"
+              value={offsetResetStrategy}
+              onChange={(event) => setOffsetResetStrategy(event.target.value as 'EARLIEST' | 'LATEST')}
+              className="px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-200"
+            >
+              <option value="EARLIEST">Inicio (reprocesar)</option>
+              <option value="LATEST">Final (omitir pendientes)</option>
+            </select>
+            <span className="text-xs text-slate-400">{consumerGroups.length} grupos</span>
+          </div>
         </div>
 
         <div className="p-5 space-y-4">
@@ -443,11 +478,22 @@ export const KafkaAdminPage: React.FC = () => {
                     <h4 className="font-bold text-white text-sm">{group.groupId}</h4>
                     <span className="text-xs text-slate-400">Estado: {group.state} | Miembros: {group.membersCount}</span>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs text-slate-400 block">Total Lag</span>
-                    <span className={`font-mono text-sm font-bold ${group.totalLag > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                      {group.totalLag} mensajes
-                    </span>
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => handleResetGroupOffsets(group.groupId)}
+                      disabled={loading || !['EMPTY', 'DEAD'].includes(group.state.toUpperCase())}
+                      title={['EMPTY', 'DEAD'].includes(group.state.toUpperCase()) ? 'Reiniciar offsets del grupo detenido' : 'Detén todos los consumidores de este grupo antes de reiniciar offsets'}
+                      className="px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-300 text-xs font-medium hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Reiniciar offsets
+                    </button>
+                    <div className="text-right">
+                      <span className="text-xs text-slate-400 block">Total Lag</span>
+                      <span className={`font-mono text-sm font-bold ${group.totalLag > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {group.totalLag} mensajes
+                      </span>
+                    </div>
                   </div>
                 </div>
 

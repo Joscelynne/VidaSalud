@@ -7,6 +7,7 @@ import type {
   AlterKafkaTopicConfigRequest,
   PublishTestKafkaEventRequest,
   KafkaOperationResponse,
+  ResetConsumerGroupOffsetsRequest,
 } from '../types/kafka.types';
 
 export const kafkaService = {
@@ -63,6 +64,20 @@ export const kafkaService = {
    */
   async listConsumerGroups(): Promise<KafkaConsumerGroup[]> {
     const response = await api.get<KafkaConsumerGroup[]>('/api/admin/kafka/consumer-groups');
+    return response.data;
+  },
+
+  /**
+   * Reinicia offsets de un consumer group detenido hacia el inicio o final del log.
+   */
+  async resetConsumerGroupOffsets(
+    groupId: string,
+    request: ResetConsumerGroupOffsetsRequest
+  ): Promise<KafkaOperationResponse> {
+    const response = await api.post<KafkaOperationResponse>(
+      `/api/admin/kafka/consumer-groups/${encodeURIComponent(groupId)}/offsets/reset`,
+      request
+    );
     return response.data;
   },
 

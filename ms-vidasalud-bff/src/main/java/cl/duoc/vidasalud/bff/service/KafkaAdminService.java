@@ -393,6 +393,71 @@ public class KafkaAdminService {
     }
 
     /**
+     * Reinicia offsets comprometidos de un grupo detenido. La operación solo se permite en grupos EMPTY o DEAD
+     * y requiere confirmación explícita porque puede repetir u omitir el procesamiento de mensajes.
+     */
+    public KafkaOperationResponse resetConsumerGroupOffsets(String groupId, ResetConsumerGroupOffsetsRequest request) {
+        if (groupId == null || groupId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El identificador del consumer group es requerido");
+        }
+        if (request == null || !request.isConfirmed()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Confirme explícitamente el reinicio de offsets");
+        }
+
+        String strategy = request.getStrategy() == null ? "" : request.getStrategy().trim().toUpperCase(Locale.ROOT);
+        if (!"EARLIEST".equals(strategy) && !"LATEST".equals(strategy)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La estrategia debe ser EARLIEST o LATEST");
+        }
+
+        String id = groupId.trim();
+        try {
+            Map<String, ConsumerGroupDescription> descriptions = adminClient.describeConsumerGroups(List.of(id))
+                    .all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            ConsumerGroupDescription description = descriptions.get(id);
+            if (description == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No existe el consumer group '" + id + "'");
+            }
+
+            String state = description.state().toString();
+            if (!"EMPTY".equals(state) && !"DEAD".equals(state)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "El consumer group debe estar detenido (EMPTY o DEAD) antes de reiniciar offsets; estado actual: " + state);
+            }
+
+            Map<TopicPartition, OffsetAndMetadata> committedOffsets = adminClient.listConsumerGroupOffsets(id)
+                    .partitionsToOffsetAndMetadata().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (committedOffsets.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "El grupo no tiene offsets comprometidos para reiniciar");
+            }
+
+            Map<TopicPartition, OffsetSpec> offsetSpecs = committedOffsets.keySet().stream()
+                    .collect(Collectors.toMap(tp -> tp, tp -> "EARLIEST".equals(strategy) ? OffsetSpec.earliest() : OffsetSpec.latest()));
+            Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo> targetOffsets = adminClient.listOffsets(offsetSpecs)
+                    .all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            Map<TopicPartition, OffsetAndMetadata> offsetsToApply = new HashMap<>();
+            targetOffsets.forEach((partition, info) -> offsetsToApply.put(partition, new OffsetAndMetadata(info.offset())));
+
+            adminClient.alterConsumerGroupOffsets(id, offsetsToApply).all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            log.warn("[KAFKA-ADMIN] Offsets del grupo [{}] reiniciados a {} en {} particiones", id, strategy, offsetsToApply.size());
+
+            return KafkaOperationResponse.builder()
+                    .status("SUCCESS")
+                    .message("Offsets del grupo '" + id + "' reiniciados a " + strategy + " en " + offsetsToApply.size() + " particiones")
+                    .timestamp(Instant.now())
+                    .details(Map.of("groupId", id, "strategy", strategy, "partitionsUpdated", offsetsToApply.size()))
+                    .build();
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Se interrumpió el reinicio de offsets del grupo '" + id + "'", ex);
+        } catch (ExecutionException | TimeoutException ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudieron reiniciar los offsets del grupo '" + id + "': " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
      * Publica un evento de prueba hacia el streaming de Kafka para demostración inmediata en laboratorios/defensa.
      */
     public KafkaOperationResponse publishTestEvent(PublishTestKafkaEventRequest request) {
